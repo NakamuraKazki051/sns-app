@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: sns-api
+  # ローカルはリポジトリ直下の docker-compose.yml の MySQL(localhost:3307)。本番は環境変数で上書きする
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3307/snsapp_development}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:snsapp}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  # アイコン画像は1MBまで。リクエスト全体はフォームの区切りなどの分だけ少し余裕を持たせる
+  servlet:
+    multipart:
+      max-file-size: 1MB
+      max-request-size: 2MB
+
+server:
+  port: 8080
+  servlet:
+    session:
+      cookie:
+        name: SNS_SESSION
+        http-only: true
+        same-site: lax
