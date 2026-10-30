@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
+import java.util.List;
 
 public class UserDtos {
 
@@ -33,19 +34,20 @@ public class UserDtos {
     ) {
     }
 
+    /** 送った項目だけ変える。自己紹介の160字は見た目の1文字で数えるので MeController で検証する */
     public record ProfileUpdateRequest(
-            @NotBlank(message = "表示名を入力してください")
             @Size(max = User.DISPLAY_NAME_MAX, message = "表示名は50文字以内で入力してください")
-            String displayName
+            String displayName,
+            String bio
     ) {
     }
 
     /** ログインしている本人に返す。メールアドレスを含む */
     public record UserResponse(String id, String email, String username, String displayName, Instant iconUpdatedAt,
-                               Instant createdAt) {
+                               String bio, Instant createdAt) {
         public static UserResponse from(User user) {
             return new UserResponse(user.getId(), user.getEmail(), user.getUsername(), user.getDisplayName(),
-                    user.getIconUpdatedAt(), user.getCreatedAt());
+                    user.getIconUpdatedAt(), user.getBio(), user.getCreatedAt());
         }
     }
 
@@ -56,8 +58,25 @@ public class UserDtos {
         }
     }
 
+    /** ユーザー検索・フォロー一覧の1人分 */
+    public record UserSummary(String id, String username, String displayName, Instant iconUpdatedAt, String bio) {
+        public static UserSummary from(User user) {
+            return new UserSummary(user.getId(), user.getUsername(), user.getDisplayName(), user.getIconUpdatedAt(),
+                    user.getBio());
+        }
+    }
+
+    /** ユーザーの一覧1ページ分。nextCursor を次のリクエストに渡すと続きを読める(続きが無ければ null) */
+    public record UserPage(List<UserSummary> users, String nextCursor) {
+    }
+
     /** ユーザーページ */
-    public record ProfileResponse(String id, String username, String displayName, Instant iconUpdatedAt, long postsCount,
+    public record ProfileResponse(String id, String username, String displayName, Instant iconUpdatedAt, String bio,
+                                  long postsCount, long followingCount, long followersCount, boolean followedByMe,
                                   Instant createdAt) {
+    }
+
+    /** フォロー・解除の結果 */
+    public record FollowResponse(boolean following, long followersCount) {
     }
 }

@@ -56,6 +56,17 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <!-- 画面(React)をビルドした結果を jar に入れ、API と同じオリジンで配信する。
+           先に frontend で npm run build しておく(無ければ API だけの jar になる) -->
+      <resource>
+        <directory>../frontend/dist</directory>
+        <targetPath>static</targetPath>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>

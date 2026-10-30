@@ -68,14 +68,16 @@ sns-app/
 | 2b | 表示名・アイコン変更の API とテスト（10/30 追加） | `backend/`（user_icons、`/api/me/profile`、`/api/me/icon`） | 済 |
 | 3 | MySQL で起動確認、コミット・PR | `docker-compose.yml` | 済 |
 | 4 | 画面のプロトタイプ | `prototype/index.html`（全画面の HTML）、`style.css`（スタイル）、`app.js`（ダミーデータ・画面遷移・操作） | 済 |
-| 5 | React の画面 | `frontend/`（ログイン/登録、タイムライン、ユーザーページ、設定） | |
-| 6 | React を Spring Boot に同梱して1つで起動 | `mvn package` で画面ごとビルド | |
+| 5 | React の画面 | `frontend/`（ログイン/登録、タイムライン、ユーザーページ、設定） | 済（10/30） |
+| 6 | React を Spring Boot に同梱して1つで起動 | `npm run build` → `mvn package` で画面ごと jar に入る（`SpaController`） | 済（10/30） |
 | 7 | 性能テスト | 投稿10万件・ユーザー1,000人のデータでタイムラインを測る | |
 | 8 | AWS へデプロイ | `infra/terraform/`、up/down/deploy スクリプト | |
 
 ### フェーズ2〜4
 
-フェーズごとに「API とテスト → 画面 → デプロイ」の順で足す。各フェーズは要件定義書のゴールを満たしてから次へ進む。
+フェーズごとに「API とテスト → 画面 → デプロイ」の順で足す。
+
+2026-10-30: ユーザーの依頼で、フェーズ2（ユーザー検索・リプライ・いいね）とフェーズ3（フォロー・ホームタイムライン・自己紹介）を前倒しで実装した（API・画面・テスト）。残りはフェーズ1の 7・8 と、フェーズ4（リポスト・画像）。動きは [`spec.md`](./spec.md)、ログインの決まりは [`auth.md`](./auth.md) にまとめた。
 
 ## 検証方法
 

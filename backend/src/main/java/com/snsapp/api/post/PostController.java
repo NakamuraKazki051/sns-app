@@ -3,12 +3,17 @@ package com.snsapp.api.post;
 import com.snsapp.api.auth.CurrentUser;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.RateLimiter;
+import com.snsapp.api.common.TextLength;
+import com.snsapp.api.like.PostLike;
+import com.snsapp.api.like.PostLikeRepository;
 import com.snsapp.api.post.PostDtos.CreateRequest;
+import com.snsapp.api.post.PostDtos.LikeResponse;
 import com.snsapp.api.post.PostDtos.PageResponse;
 import com.snsapp.api.post.PostDtos.PostResponse;
 import com.snsapp.api.user.User;
 import com.snsapp.api.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -21,18 +26,16 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.text.BreakIterator;
 import java.time.Duration;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api")
 public class PostController {
 
     /** 1ページの件数(タイムライン・ユーザーページ共通) */
-    public static final int PAGE_SIZE = 20;
+    public static final int PAGE_SIZE = PostViews.PAGE_SIZE;
 
-    // 連投対策: 1ユーザー1分間に10投稿まで
+    // 連投対策: 1ユーザー1分間に10投稿まで(リプライも別枠で同じ回数)
     public static final int POSTS_PER_WINDOW = 10;
     public static final Duration POST_WINDOW = Duration.ofMinutes(1);
 
@@ -40,14 +43,19 @@ public class PostController {
     static final int BODY_MAX_CHARS = 2000;
 
     private final PostRepository postRepository;
+    private final PostLikeRepository likeRepository;
     private final UserRepository userRepository;
+    private final PostViews postViews;
     private final CurrentUser currentUser;
     private final RateLimiter rateLimiter;
 
-    public PostController(PostRepository postRepository, UserRepository userRepository, CurrentUser currentUser,
+    public PostController(PostRepository postRepository, PostLikeRepository likeRepository,
+                          UserRepository userRepository, PostViews postViews, CurrentUser currentUser,
                           RateLimiter rateLimiter) {
         this.postRepository = postRepository;
+        this.likeRepository = likeRepository;
         this.userRepository = userRepository;
+        this.postViews = postViews;
         this.currentUser = currentUser;
         this.rateLimiter = rateLimiter;
     }
@@ -55,11 +63,27 @@ public class PostController {
     /** 全体タイムライン。before(投稿 ID)を渡すと、それより古いものから */
     @GetMapping("/timeline")
     public PageResponse timeline(@RequestParam(required = false) Long before, HttpServletRequest httpRequest) {
-        currentUser.require(httpRequest);
+        String userId = currentUser.require(httpRequest);
         Limit limit = Limit.of(PAGE_SIZE + 1);
-        return toPage(before == null
+        return postViews.page(before == null
                 ? postRepository.findByOrderByIdDesc(limit)
-                : postRepository.findByIdLessThanOrderByIdDesc(before, limit));
+                : postRepository.findByIdLessThanOrderByIdDesc(before, limit), userId);
+    }
+
+    /** ホームタイムライン: 自分とフォロー中の人の投稿だけ */
+    @GetMapping("/timeline/home")
+    public PageResponse home(@RequestParam(required = false) Long before, HttpServletRequest httpRequest) {
+        String userId = currentUser.require(httpRequest);
+        Limit limit = Limit.of(PAGE_SIZE + 1);
+        return postViews.page(before == null
+                ? postRepository.findHome(userId, limit)
+                : postRepository.findHomeBefore(userId, before, limit), userId);
+    }
+
+    @GetMapping("/posts/{id}")
+    public PostResponse show(@PathVariable Long id, HttpServletRequest httpRequest) {
+        String userId = currentUser.require(httpRequest);
+        return postViews.one(findPost(id), userId);
     }
 
     @PostMapping("/posts")
@@ -69,13 +93,13 @@ public class PostController {
         if (!rateLimiter.tryAcquire("post:" + userId, POSTS_PER_WINDOW, POST_WINDOW)) {
             throw ApiException.tooManyRequests("投稿が多すぎます。1分ほど待ってからもう一度お試しください");
         }
-        String body = bodyValue(request.body());
+        String body = bodyValue(request.body(), "投稿");
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.unauthorized("ログインしていません"));
-        return PostResponse.from(postRepository.save(new Post(user, body)));
+        return PostResponse.from(postRepository.save(new Post(user, body)), 0, 0, false);
     }
 
-    // 他人の投稿は 403 ではなく 404 にする(消せる投稿が存在しない、という扱い)
+    // 他人の投稿は 403 ではなく 404 にする(消せる投稿が存在しない、という扱い)。リプライといいねは DB が一緒に消す
     @DeleteMapping("/posts/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {
@@ -85,31 +109,43 @@ public class PostController {
         }
     }
 
-    /** 1件多く読んだ結果から、1ページ分と「続きがあるか」を作る */
-    public static PageResponse toPage(List<Post> fetched) {
-        List<PostResponse> posts = fetched.stream().limit(PAGE_SIZE).map(PostResponse::from).toList();
-        return new PageResponse(posts, fetched.size() > PAGE_SIZE);
-    }
-
-    /** 140字は「見た目の1文字」で数える。絵文字や結合文字も1字(画面の Intl.Segmenter と同じ数え方) */
-    static int visibleLength(String text) {
-        BreakIterator graphemes = BreakIterator.getCharacterInstance();
-        graphemes.setText(text);
-        int count = 0;
-        while (graphemes.next() != BreakIterator.DONE) {
-            count++;
+    /** いいねする。もういいね済みならそのまま(何度押しても1回分) */
+    @PostMapping("/posts/{id}/like")
+    public LikeResponse like(@PathVariable Long id, HttpServletRequest httpRequest) {
+        String userId = currentUser.require(httpRequest);
+        Post post = findPost(id);
+        if (!likeRepository.existsByUserIdAndPostId(userId, id)) {
+            try {
+                likeRepository.saveAndFlush(new PostLike(userRepository.getReferenceById(userId), post));
+            } catch (DataIntegrityViolationException e) {
+                // 上の確認と保存の間に同じいいねが入った(連打)。一意制約で弾かれたので、いいね済みとして扱う
+            }
         }
-        return count;
+        return new LikeResponse(true, likeRepository.countByPostId(id));
     }
 
-    // 改行は残し、前後の空白だけ取る。空白だけの投稿は受け付けない
-    private static String bodyValue(String value) {
+    /** いいねを取り消す。いいねしていなければそのまま */
+    @DeleteMapping("/posts/{id}/like")
+    public LikeResponse unlike(@PathVariable Long id, HttpServletRequest httpRequest) {
+        String userId = currentUser.require(httpRequest);
+        findPost(id);
+        likeRepository.deleteByUserIdAndPostId(userId, id);
+        return new LikeResponse(false, likeRepository.countByPostId(id));
+    }
+
+    public Post findPost(Long id) {
+        return postRepository.findWithUserById(id)
+                .orElseThrow(() -> ApiException.notFound("投稿が見つかりません: " + id));
+    }
+
+    /** 改行は残し、前後の空白だけ取る。空白だけ・140字超えは受け付けない(投稿とリプライ共通) */
+    public static String bodyValue(String value, String label) {
         if (value == null || value.isBlank()) {
-            throw ApiException.badRequest("投稿の本文を入力してください");
+            throw ApiException.badRequest(label + "の本文を入力してください");
         }
         String body = value.strip();
-        if (body.length() > BODY_MAX_CHARS || visibleLength(body) > Post.BODY_MAX) {
-            throw ApiException.badRequest("投稿は" + Post.BODY_MAX + "文字以内で入力してください");
+        if (body.length() > BODY_MAX_CHARS || TextLength.visible(body) > Post.BODY_MAX) {
+            throw ApiException.badRequest(label + "は" + Post.BODY_MAX + "文字以内で入力してください");
         }
         return body;
     }
