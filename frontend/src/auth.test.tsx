@@ -78,7 +78,7 @@ describe("ログインが必要な画面", () => {
 
   it("ログインすると、覚えておいた画面に戻る", async () => {
     let loggedIn = false;
-    const fetchMock = mockFetch((url, init) => {
+    const fetchMock = mockFetch((url) => {
       if (url === "/api/auth/login") {
         loggedIn = true;
         return { status: 200, body: ME };
@@ -93,7 +93,7 @@ describe("ログインが必要な画面", () => {
 
     await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/@bob"));
     const loginCall = fetchMock.mock.calls.find(([url]) => url === "/api/auth/login")!;
-    expect(JSON.parse(loginCall[1].body as string)).toEqual({ email: "alice@example.com", password: "password123" });
+    expect(JSON.parse(loginCall[1]?.body as string)).toEqual({ email: "alice@example.com", password: "password123" });
   });
 
   it("パスワード違いはログイン画面にエラーを出し、セッション切れ扱いにはしない", async () => {
@@ -136,6 +136,46 @@ describe("ログインが必要な画面", () => {
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(
       expect.arrayContaining(["/api/auth/register", "/api/auth/login"]),
     );
+  });
+
+  it("自分でログアウトしたら、戻り先を付けずにログイン画面へ移す", async () => {
+    let loggedOut = false;
+    mockFetch((url) => {
+      if (url === "/api/auth/logout") {
+        loggedOut = true;
+        return { status: 204 };
+      }
+      return loggedOut ? { status: 401, body: {} } : { status: 200, body: ME };
+    });
+    function LogoutButton() {
+      const { logout } = useAuth();
+      return (
+        <button type="button" onClick={() => logout()}>
+          ログアウト
+        </button>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={["/posts/5"]}>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="*"
+              element={
+                <RequireAuth>
+                  <LogoutButton />
+                </RequireAuth>
+              }
+            />
+          </Routes>
+          <WhereAmI />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+    await userEvent.setup().click(await screen.findByRole("button", { name: "ログアウト" }));
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/login"));
+    expect(screen.queryByText(/有効期限が切れました/)).toBeNull();
   });
 
   it("ログイン中に API が 401 を返したら、ログイン画面で理由を伝える", async () => {
