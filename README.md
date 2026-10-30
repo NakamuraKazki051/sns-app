@@ -1,29 +1,48 @@
 # RaiseLine
 
-旧Twitter風のSNSを、学習用に作るリポジトリです。140文字の投稿を書いて、みんなの投稿をタイムラインで読めるアプリを目指します。
+旧Twitter風のSNSを、学習用に作るリポジトリです。140文字の投稿を書いて、タイムラインで読み、リプライ・いいね・フォローで反応できます。
 
 技術構成は React + Spring Boot + MySQL です。
 
 ## ドキュメント
 
 - [`docs/requirements.md`](./docs/requirements.md)：要件定義書
+- [`docs/spec.md`](./docs/spec.md)：仕様書（画面・API・データ・テスト）
+- [`docs/auth.md`](./docs/auth.md)：認証機能 定義書（バックエンド・フロントエンド）
 - [`docs/plan.md`](./docs/plan.md)：計画書（実装ステップと進み具合）
 
 ## 構成
 
 | フォルダ | 中身 |
 | --- | --- |
-| `prototype/` | 画面のモック（HTML/CSS/JS、ダミーデータ）。`index.html` をブラウザで開くだけで動く |
+| `frontend/` | 画面（React 19 + TypeScript + Vite） |
 | `backend/` | API（Java 25 + Spring Boot 4.1 + Maven） |
+| `prototype/` | 画面のモック（HTML/CSS/JS、ダミーデータ）。`index.html` をブラウザで開くだけで動く |
 | `docker-compose.yml` | ローカルの MySQL 8.4（ポート 3307） |
 
 ## ローカルで動かす
 
+開発中（画面を直すとすぐ反映される）:
+
 ```powershell
-docker compose up -d     # MySQL を起動
-cd backend
-mvn spring-boot:run      # http://localhost:8080 で API が起動
-mvn test                 # テスト（H2 を使うので MySQL は不要）
+docker compose up -d                    # MySQL を起動
+cd backend; mvn spring-boot:run         # API（http://localhost:8080）
+cd frontend; npm install; npm run dev   # 画面（http://localhost:5173 を開く）
 ```
 
-終わったら `docker compose down` で MySQL を止めます（データは残ります）。
+1つにまとめて動かす（画面と API を 8080 で配信）:
+
+```powershell
+cd frontend; npm run build
+cd ../backend; mvn package
+java -jar target/sns-api-0.1.0.jar      # http://localhost:8080 を開く
+```
+
+テスト:
+
+```powershell
+cd backend; mvn test      # API（H2 を使うので MySQL は不要）
+cd frontend; npm test     # 画面（Vitest）
+```
+
+終わったら `docker compose stop` で MySQL を止めます（データは残ります）。
