@@ -18,7 +18,7 @@ services:
     ports:
       - "3307:3306"
     volumes:
-      - mysql-data:/var/lib/mysql
+      - mysql-data-v2:/var/lib/mysql
     mem_limit: 384m
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -psnsapp --silent"]
@@ -27,4 +27,5 @@ services:
       retries: 10
 
 volumes:
-  mysql-data:
+  # 10/30: 以前の mysql-data は Rails 版の設定が残っていて接続できなかったので、新しいボリュームに切り替えた
+  mysql-data-v2:
