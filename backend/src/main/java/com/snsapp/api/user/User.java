@@ -33,6 +33,9 @@ public class User {
     @Column(nullable = false, length = DISPLAY_NAME_MAX)
     private String displayName;
 
+    // アイコンの更新時刻。アイコンが無ければ null。画像の URL に付けて、変更したらブラウザのキャッシュを使わないようにする
+    private Instant iconUpdatedAt;
+
     private Instant createdAt;
 
     protected User() {
@@ -82,6 +85,18 @@ public class User {
 
     public String getDisplayName() {
         return displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
+    }
+
+    public Instant getIconUpdatedAt() {
+        return iconUpdatedAt;
+    }
+
+    public void setIconUpdatedAt(Instant iconUpdatedAt) {
+        this.iconUpdatedAt = iconUpdatedAt;
     }
 
     public Instant getCreatedAt() {

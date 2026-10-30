@@ -12,6 +12,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Duration;
 import java.util.Optional;
 
 @RestController
@@ -28,13 +32,15 @@ import java.util.Optional;
 public class UserController {
 
     private final UserRepository userRepository;
+    private final UserIconRepository userIconRepository;
     private final PostRepository postRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUser currentUser;
 
-    public UserController(UserRepository userRepository, PostRepository postRepository, PasswordEncoder passwordEncoder,
-                          CurrentUser currentUser) {
+    public UserController(UserRepository userRepository, UserIconRepository userIconRepository,
+                          PostRepository postRepository, PasswordEncoder passwordEncoder, CurrentUser currentUser) {
         this.userRepository = userRepository;
+        this.userIconRepository = userIconRepository;
         this.postRepository = postRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentUser = currentUser;
@@ -45,7 +51,7 @@ public class UserController {
     public ProfileResponse show(@PathVariable String username, HttpServletRequest httpRequest) {
         currentUser.require(httpRequest);
         User user = findUser(username);
-        return new ProfileResponse(user.getId(), user.getUsername(), user.getDisplayName(),
+        return new ProfileResponse(user.getId(), user.getUsername(), user.getDisplayName(), user.getIconUpdatedAt(),
                 postRepository.countByUserId(user.getId()), user.getCreatedAt());
     }
 
@@ -59,6 +65,19 @@ public class UserController {
         return PostController.toPage(before == null
                 ? postRepository.findByUserIdOrderByIdDesc(user.getId(), limit)
                 : postRepository.findByUserIdAndIdLessThanOrderByIdDesc(user.getId(), before, limit));
+    }
+
+    /** アイコン画像。URL に ?v=<更新時刻> が付くので、ブラウザには長くキャッシュさせる */
+    @GetMapping("/{username}/icon")
+    public ResponseEntity<byte[]> icon(@PathVariable String username, HttpServletRequest httpRequest) {
+        currentUser.require(httpRequest);
+        UserIcon icon = userIconRepository.findById(findUser(username).getId())
+                .orElseThrow(() -> ApiException.notFound("アイコンが設定されていません: @" + username));
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(icon.getContentType()))
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePrivate())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(icon.getData());
     }
 
     @PutMapping("/me")

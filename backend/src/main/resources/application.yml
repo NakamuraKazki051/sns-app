@@ -10,6 +10,11 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+  # アイコン画像は1MBまで。リクエスト全体はフォームの区切りなどの分だけ少し余裕を持たせる
+  servlet:
+    multipart:
+      max-file-size: 1MB
+      max-request-size: 2MB
 
 server:
   port: 8080

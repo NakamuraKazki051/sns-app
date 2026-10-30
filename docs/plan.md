@@ -64,10 +64,10 @@ sns-app/
 | # | 作業 | 成果物 | 状態 |
 | --- | --- | --- | --- |
 | 1 | リポジトリ作成・要件定義 | `README.md`、`docs/requirements.md` | 済 |
-| 2 | バックエンド API とテスト | `backend/`（users・posts、認証、タイムライン） | 済（未コミット） |
-| 2b | 表示名・アイコン変更の API とテスト（10/30 追加） | `backend/`（user_icons、`/api/me/profile`、`/api/me/icon`） | |
+| 2 | バックエンド API とテスト | `backend/`（users・posts、認証、タイムライン） | 済 |
+| 2b | 表示名・アイコン変更の API とテスト（10/30 追加） | `backend/`（user_icons、`/api/me/profile`、`/api/me/icon`） | 済 |
 | 3 | MySQL で起動確認、コミット・PR | `docker-compose.yml` | 10/30 試行。MySQL のデータ領域が壊れていて接続できず、作り直し待ち |
-| 4 | 画面のプロトタイプ | `prototype/index.html`（全画面の HTML）、`style.css`（スタイル）、`app.js`（ダミーデータ・画面遷移・操作） | 済（未コミット） |
+| 4 | 画面のプロトタイプ | `prototype/index.html`（全画面の HTML）、`style.css`（スタイル）、`app.js`（ダミーデータ・画面遷移・操作） | 済 |
 | 5 | React の画面 | `frontend/`（ログイン/登録、タイムライン、ユーザーページ、設定） | |
 | 6 | React を Spring Boot に同梱して1つで起動 | `mvn package` で画面ごとビルド | |
 | 7 | 性能テスト | 投稿10万件・ユーザー1,000人のデータでタイムラインを測る | |

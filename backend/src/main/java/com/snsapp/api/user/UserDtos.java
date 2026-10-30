@@ -33,21 +33,31 @@ public class UserDtos {
     ) {
     }
 
+    public record ProfileUpdateRequest(
+            @NotBlank(message = "表示名を入力してください")
+            @Size(max = User.DISPLAY_NAME_MAX, message = "表示名は50文字以内で入力してください")
+            String displayName
+    ) {
+    }
+
     /** ログインしている本人に返す。メールアドレスを含む */
-    public record UserResponse(String id, String email, String username, String displayName, Instant createdAt) {
+    public record UserResponse(String id, String email, String username, String displayName, Instant iconUpdatedAt,
+                               Instant createdAt) {
         public static UserResponse from(User user) {
-            return new UserResponse(user.getId(), user.getEmail(), user.getUsername(), user.getDisplayName(), user.getCreatedAt());
+            return new UserResponse(user.getId(), user.getEmail(), user.getUsername(), user.getDisplayName(),
+                    user.getIconUpdatedAt(), user.getCreatedAt());
         }
     }
 
     /** 他のユーザーにも見せる部分(投稿の投稿者など) */
-    public record PublicUser(String id, String username, String displayName) {
+    public record PublicUser(String id, String username, String displayName, Instant iconUpdatedAt) {
         public static PublicUser from(User user) {
-            return new PublicUser(user.getId(), user.getUsername(), user.getDisplayName());
+            return new PublicUser(user.getId(), user.getUsername(), user.getDisplayName(), user.getIconUpdatedAt());
         }
     }
 
     /** ユーザーページ */
-    public record ProfileResponse(String id, String username, String displayName, long postsCount, Instant createdAt) {
+    public record ProfileResponse(String id, String username, String displayName, Instant iconUpdatedAt, long postsCount,
+                                  Instant createdAt) {
     }
 }

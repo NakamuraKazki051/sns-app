@@ -65,7 +65,7 @@ MVP のテーブルは users・posts・user_icons の3つ。フェーズが進�
 
 | テーブル | 主な項目 | 制約・インデックス | フェーズ |
 | --- | --- | --- | --- |
-| users | email, password_digest, username, display_name, bio | email と username に一意制約。検索は部分一致（LIKE）で、1,000人規模なら十分速い | 1（bio は3） |
+| users | email, password_digest, username, display_name, icon_updated_at（アイコンが無ければ null）, bio | email と username に一意制約。検索は部分一致（LIKE）で、1,000人規模なら十分速い | 1（bio は3） |
 | user_icons | user_id, content_type, data（画像本体、1MBまで）, updated_at | user_id が主キー（1人1枚）。users と分けて、ユーザー一覧を読むたびに画像まで読まないようにする。小さい画像だけなので S3 を使わず DB に置く | 1 |
 | posts | user_id, body（140字）, created_at | (created_at, id) と (user_id, created_at, id) にインデックス | 1 |
 | comments | post_id, user_id, body（140字）, created_at | (post_id, created_at) にインデックス。投稿を消すとコメントも消える | 2 |
