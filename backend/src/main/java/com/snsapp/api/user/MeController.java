@@ -2,6 +2,7 @@ package com.snsapp.api.user;
 
 import com.snsapp.api.auth.CurrentUser;
 import com.snsapp.api.common.ApiException;
+import com.snsapp.api.common.TextLength;
 import com.snsapp.api.user.UserDtos.ProfileUpdateRequest;
 import com.snsapp.api.user.UserDtos.UserResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,6 +27,9 @@ import java.util.Arrays;
 @RequestMapping("/api/me")
 public class MeController {
 
+    // 見た目で160字でも、結合文字を大量に重ねた文字列は巨大になりうる。数える前に生の長さでも止める
+    private static final int BIO_MAX_CHARS = 2000;
+
     private static final byte[] JPEG_MAGIC = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
     private static final byte[] PNG_MAGIC = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
 
@@ -43,11 +47,21 @@ public class MeController {
     @Transactional
     public UserResponse updateProfile(@Valid @RequestBody ProfileUpdateRequest request, HttpServletRequest httpRequest) {
         User user = findMe(httpRequest);
-        String displayName = request.displayName().strip();
-        if (displayName.isEmpty()) {
-            throw ApiException.badRequest("表示名を入力してください");
+        if (request.displayName() != null) {
+            String displayName = request.displayName().strip();
+            if (displayName.isEmpty()) {
+                throw ApiException.badRequest("表示名を入力してください");
+            }
+            user.setDisplayName(displayName);
         }
-        user.setDisplayName(displayName);
+        if (request.bio() != null) {
+            // 改行は残す。空にすると自己紹介を消す
+            String bio = request.bio().strip();
+            if (bio.length() > BIO_MAX_CHARS || TextLength.visible(bio) > User.BIO_MAX) {
+                throw ApiException.badRequest("自己紹介は" + User.BIO_MAX + "文字以内で入力してください");
+            }
+            user.setBio(bio.isEmpty() ? null : bio);
+        }
         return UserResponse.from(user);
     }
 

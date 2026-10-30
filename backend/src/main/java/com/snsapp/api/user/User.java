@@ -15,6 +15,7 @@ public class User {
 
     public static final String USERNAME_PATTERN = "[A-Za-z0-9_]{1,15}";
     public static final int DISPLAY_NAME_MAX = 50;
+    public static final int BIO_MAX = 160;
 
     @Id
     @Column(length = 36)
@@ -35,6 +36,10 @@ public class User {
 
     // アイコンの更新時刻。アイコンが無ければ null。画像の URL に付けて、変更したらブラウザのキャッシュを使わないようにする
     private Instant iconUpdatedAt;
+
+    // 自己紹介。160字は見た目の1文字で数えるので、絵文字を考えて長めの列にする
+    @Column(length = 2000)
+    private String bio;
 
     private Instant createdAt;
 
@@ -89,6 +94,14 @@ public class User {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
     }
 
     public Instant getIconUpdatedAt() {
