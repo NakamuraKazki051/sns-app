@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RaiseLine</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 共通ヘッダー（ログイン後だけ表示） -->
+  <header class="header" id="header" hidden>
+    <div class="header-inner">
+      <a href="#/" class="logo">RaiseLine</a>
+      <nav class="header-nav">
+        <a href="#/" data-nav="timeline">ホーム</a>
+        <a href="#/@kazki" data-nav="me" id="nav-me">プロフィール</a>
+        <a href="#/settings" data-nav="settings">設定</a>
+        <button type="button" class="link-button" id="theme-toggle" aria-label="ダークモード切り替え">🌙</button>
+        <button type="button" class="link-button" id="logout">ログアウト</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- エラーバナー -->
+  <div class="error-banner" id="error-banner" role="alert" hidden>
+    <span id="error-text"></span>
+    <button type="button" class="link-button" id="error-close" aria-label="閉じる">×</button>
+  </div>
+
+  <main class="container">
+    <!-- 画面1: ログイン / 新規登録 -->
+    <section class="screen" id="screen-login" hidden>
+      <h1 class="login-title">RaiseLine</h1>
+      <div class="tabs">
+        <button type="button" class="tab active" data-auth-tab="login">ログイン</button>
+        <button type="button" class="tab" data-auth-tab="register">新規登録</button>
+      </div>
+      <form class="card form" id="auth-form" novalidate>
+        <div class="register-only" hidden>
+          <label>ユーザー名
+            <div class="input-prefix"><span>@</span><input name="username" maxlength="15" placeholder="kazki"></div>
+            <small>半角英数字と _ で1〜15字</small>
+          </label>
+          <label>表示名
+            <input name="displayName" maxlength="50" placeholder="かずき">
+          </label>
+        </div>
+        <label>メールアドレス
+          <input name="email" type="email" placeholder="you@example.com">
+        </label>
+        <label>パスワード
+          <input name="password" type="password" placeholder="8文字以上">
+        </label>
+        <button type="submit" class="button primary" id="auth-submit">ログイン</button>
+        <p class="hint">モックなので、何を入れてもログインできます（空欄だとエラー）</p>
+      </form>
+    </section>
+
+    <!-- 画面2: タイムライン -->
+    <section class="screen" id="screen-timeline" hidden>
+      <h2 class="screen-title">ホーム</h2>
+      <form class="card composer" id="composer">
+        <textarea id="composer-text" rows="3" placeholder="いまどうしてる？"></textarea>
+        <div class="composer-footer">
+          <span class="counter" id="composer-counter">140</span>
+          <button type="submit" class="button primary" id="composer-submit" disabled>投稿する</button>
+        </div>
+      </form>
+      <ul class="post-list" id="timeline-list"></ul>
+      <button type="button" class="button more" id="timeline-more">もっと見る</button>
+    </section>
+
+    <!-- 画面3: ユーザーページ -->
+    <section class="screen" id="screen-user" hidden>
+      <div class="card profile">
+        <div class="avatar large" id="profile-avatar"></div>
+        <h2 id="profile-name"></h2>
+        <p class="muted" id="profile-username"></p>
+        <p><strong id="profile-count"></strong> 件の投稿</p>
+      </div>
+      <ul class="post-list" id="user-list"></ul>
+      <p class="empty" id="user-empty" hidden>まだ投稿がありません</p>
+    </section>
+
+    <!-- 画面4: アカウント設定 -->
+    <section class="screen" id="screen-settings" hidden>
+      <h2 class="screen-title">設定</h2>
+      <form class="card form" id="profile-form" novalidate>
+        <h3>プロフィール</h3>
+        <div class="icon-edit">
+          <div class="avatar large" id="icon-preview"></div>
+          <div class="icon-buttons">
+            <label class="button">画像を選ぶ
+              <input type="file" id="icon-input" accept="image/jpeg,image/png" hidden>
+            </label>
+            <button type="button" class="link-button" id="icon-reset">アイコンを外す</button>
+            <small class="muted">JPEG / PNG、1MBまで</small>
+          </div>
+        </div>
+        <label>表示名
+          <input name="displayName">
+          <small><span id="name-counter">0</span> / 50</small>
+        </label>
+        <button type="submit" class="button primary">保存する</button>
+      </form>
+      <form class="card form" id="email-form" novalidate>
+        <h3>メールアドレスの変更</h3>
+        <label>新しいメールアドレス<input name="email" type="email" value="kazki@example.com"></label>
+        <button type="submit" class="button primary">変更する</button>
+      </form>
+      <form class="card form" id="password-form" novalidate>
+        <h3>パスワードの変更</h3>
+        <label>今のパスワード<input name="current" type="password"></label>
+        <label>新しいパスワード<input name="next" type="password" placeholder="8文字以上"></label>
+        <button type="submit" class="button primary">変更する</button>
+      </form>
+    </section>
+
+    <!-- 存在しないユーザー -->
+    <section class="screen" id="screen-notfound" hidden>
+      <div class="card empty">ユーザーが見つかりません</div>
+    </section>
+  </main>
+
+  <!-- 削除確認モーダル -->
+  <div class="modal-backdrop" id="delete-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+      <h3 id="delete-title">投稿を削除しますか？</h3>
+      <p class="muted">削除すると元に戻せません。</p>
+      <div class="modal-actions">
+        <button type="button" class="button" id="delete-cancel">キャンセル</button>
+        <button type="button" class="button danger" id="delete-ok">削除する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 完了メッセージ -->
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

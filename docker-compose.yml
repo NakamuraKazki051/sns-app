@@ -1,0 +1,30 @@
+services:
+  db:
+    image: mysql:8.4
+    container_name: sns-app-mysql
+    # メモリの少ないPCなので、Docker Desktop の起動と同時に勝手に立ち上がらないようにする(使うときに docker compose up -d)
+    restart: "no"
+    environment:
+      MYSQL_ROOT_PASSWORD: snsapp
+      MYSQL_DATABASE: snsapp_development
+      TZ: Asia/Tokyo
+    # 低メモリ向け: 統計情報(performance_schema)を切り、バッファを小さくする
+    command:
+      - --performance-schema=OFF
+      - --innodb-buffer-pool-size=64M
+      - --innodb-log-buffer-size=8M
+      - --max-connections=30
+    # 収支管理アプリ(finance-manager-app)の MySQL と同時に起動できるよう、PC 側のポートは 3307 にする
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -psnsapp --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql-data:
