@@ -51,6 +51,7 @@ a:hover { text-decoration: underline; }
 .header-nav { display: flex; gap: 16px; align-items: center; font-size: 14px; }
 .header-nav a { color: var(--muted); }
 .header-nav a.active { color: var(--text); font-weight: 700; }
+.header-nav a, .header-nav button { white-space: nowrap; }
 
 /* ===== レイアウト ===== */
 .container {
@@ -210,7 +211,10 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: tr
 /* ===== スマホ幅 ===== */
 @media (max-width: 600px) {
   .container { border: none; }
-  .header-nav { gap: 10px; font-size: 13px; }
+  /* 狭い画面では、メニューを単語の途中で折り返さずロゴの下へ回す */
+  .header-inner { flex-wrap: wrap; gap: 4px 12px; padding: 10px 12px; }
+  .logo { font-size: 18px; }
+  .header-nav { gap: 4px 8px; font-size: 13px; flex-wrap: wrap; }
 }
 
 /* ===== ここから React 版で足したもの ===== */

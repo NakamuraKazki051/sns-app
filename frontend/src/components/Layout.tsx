@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router";
+import { Link, NavLink, Outlet } from "react-router";
 import { useAuth, useMe } from "../auth";
 
 type Theme = "light" | "dark";
@@ -15,7 +15,6 @@ export function initialTheme(): Theme {
 export function Layout() {
   const me = useMe();
   const { logout } = useAuth();
-  const navigate = useNavigate();
   const [theme, setTheme] = useState<Theme>(() => document.documentElement.dataset.theme as Theme);
 
   function toggleTheme() {
@@ -25,9 +24,9 @@ export function Layout() {
     setTheme(next);
   }
 
+  // ログアウトすると RequireAuth が /login へ移す(戻り先は付けない)
   async function onLogout() {
     await logout();
-    navigate("/login", { replace: true });
   }
 
   const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? "active" : undefined);

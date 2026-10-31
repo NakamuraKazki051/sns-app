@@ -12,6 +12,8 @@ type AuthContextValue = {
   loading: boolean;
   /** セッションが切れてログイン画面に戻されたとき true(ログイン画面に理由を出す) */
   sessionExpired: boolean;
+  /** 自分でログアウトしたとき true(ログイン画面に戻り先を付けない) */
+  signedOut: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (params: RegisterParams) => Promise<void>;
   logout: () => Promise<void>;
@@ -29,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const user = await api<Me>("/api/auth/login", { method: "POST", body: { email, password } });
     setSessionExpired(false);
+    setSignedOut(false);
     setMe(user);
   }, []);
 
@@ -72,13 +76,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api<void>("/api/auth/logout", { method: "POST" });
     } finally {
       // サーバーに届かなくても、画面上はログアウトする
+      setSignedOut(true);
       setMe(null);
     }
   }, []);
 
   const value = useMemo(
-    () => ({ me, loading, sessionExpired, login, register, logout, updateMe: setMe }),
-    [me, loading, sessionExpired, login, register, logout],
+    () => ({ me, loading, sessionExpired, signedOut, login, register, logout, updateMe: setMe }),
+    [me, loading, sessionExpired, signedOut, login, register, logout],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -91,10 +96,14 @@ export function useAuth(): AuthContextValue {
 
 /** ログインした人だけが見られる画面。未ログインならログイン画面へ移し、ログイン後に元の画面へ戻す */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { me, loading } = useAuth();
+  const { me, loading, signedOut } = useAuth();
   const location = useLocation();
   if (loading) {
     return <p className="empty">読み込み中…</p>;
+  }
+  if (!me && signedOut) {
+    // 自分でログアウトしたら、次にログインした人はタイムラインから始める
+    return <Navigate to="/login" replace />;
   }
   if (!me) {
     const next = encodeURIComponent(location.pathname + location.search);
