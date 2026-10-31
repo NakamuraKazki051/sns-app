@@ -232,5 +232,5 @@ Chrome の確認で見つけて直したもの:
 ## 8. 決まっていないこと・今後
 
 - リポスト（F-13）、画像の添付（F-14）
-- AWS へのデプロイ（HTTPS にして Cookie に `Secure` を付ける）
+- HTTPS（独自ドメインが要る）。HTTPS にしたら Cookie に `Secure` を付ける。今の AWS 環境（`infra/terraform`）は HTTP
 - `me` など、画面の URL と重なるユーザー名の予約（今は `/@me` のように `@` が付くので衝突しない）
