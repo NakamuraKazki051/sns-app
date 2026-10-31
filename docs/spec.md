@@ -172,9 +172,17 @@
 | likes | id, user_id, post_id, created_at | (user_id, post_id) に一意制約、(post_id)。投稿を消すと一緒に消える |
 | follows | id（連番）, follower_id, followee_id, created_at | (follower_id, followee_id) に一意制約、(followee_id, id) |
 
+**テーブルの作り方（マイグレーション）**
+
+- テーブルは Flyway が `backend/src/main/resources/db/migration` の SQL で作る。アプリの起動時に、まだ流していない SQL を順に流す
+- テーブルを変えるときは、流し済みの SQL は直さず、`V2__〜.sql` のように番号を増やしたファイルを足す
+- Hibernate はテーブルを作らず、エンティティと合っているかを確かめるだけ（`ddl-auto: validate`）。合わなければ起動しない。テストも H2 に同じ SQL を流すので、ずれはテストで分かる
+- Flyway を入れる前（2026-10-31 まで）は Hibernate が自動で作っていた。そのころからある DB は、最初の起動で「V1 まで済み」として記録される（`V1__init.sql` は当時のテーブルとまったく同じ）
+
 **速さの工夫**
 
 - 投稿一覧は投稿者をまとめて読む（`@EntityGraph`）
+- ホームタイムラインは、フォロー中の人の ID を先に取り、`user_id IN (...)` で投稿を読む。こうすると (user_id, id) のインデックスが使える
 - いいね数・リプライ数・自分がいいね済みかは、1ページ分（20件）をまとめて3回のクエリで数える。投稿ごとに数えると1ページで60回 DB に問い合わせることになる（N+1）
 - アイコン画像は別テーブル。一覧には更新時刻だけを載せる
 
@@ -183,7 +191,7 @@
 | 部分 | 技術 | 場所 |
 | --- | --- | --- |
 | 画面 | React 19 + TypeScript + Vite 8 + React Router 8（UI ライブラリなし） | `frontend/` |
-| API | Java 25 + Spring Boot 4.1 + Spring Data JPA | `backend/` |
+| API | Java 25 + Spring Boot 4.1 + Spring Data JPA + Flyway | `backend/` |
 | DB | MySQL 8.4（Docker、ポート 3307、ボリューム `mysql-data-v2`） | `docker-compose.yml` |
 
 - **開発中**: Spring Boot（8080）と Vite（5173）を両方起動し、`http://localhost:5173` を開く。Vite が `/api` を 8080 に中継する

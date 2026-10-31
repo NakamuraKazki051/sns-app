@@ -26,7 +26,7 @@ RaiseLine は旧Twitter風のテキストSNS。140文字の投稿を書いて、
 | レイヤー | 主要技術 |
 | --- | --- |
 | フロントエンド | React 19 + TypeScript + Vite + React Router（UI ライブラリは使わず CSS を自分で書く） |
-| バックエンド | Java 25 + Spring Boot 4.1 + Maven（Spring Data JPA、BCrypt） |
+| バックエンド | Java 25 + Spring Boot 4.1 + Maven（Spring Data JPA、Flyway、BCrypt） |
 | データベース | MySQL 8.4（ローカルは Docker、AWS は RDS） |
 | テスト | JUnit 5 + MockMvc（テスト用 DB は H2）、フロントは Vitest |
 | インフラ | AWS（EC2 + RDS、画像を入れるフェーズ4で S3）+ Terraform |
