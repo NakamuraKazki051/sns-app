@@ -22,16 +22,10 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     List<Post> findByIdLessThanOrderByIdDesc(Long before, Limit limit);
 
     @EntityGraph(attributePaths = "user")
-    List<Post> findByUserIdOrderByIdDesc(String userId, Limit limit);
-
-    @EntityGraph(attributePaths = "user")
-    List<Post> findByUserIdAndIdLessThanOrderByIdDesc(String userId, Long before, Limit limit);
-
-    @EntityGraph(attributePaths = "user")
     Optional<Post> findWithUserById(Long id);
 
     /**
-     * ホームタイムライン: 渡した投稿者(自分とフォロー中の人)の投稿。
+     * 渡した投稿者の投稿(ホームタイムラインは自分とフォロー中の人、ユーザーページはその人1人)。
      * 「自分 or フォロー中(サブクエリ)」の条件だと MySQL が投稿者の索引を使えず、投稿を新しい順に全件見ていく。
      * 該当する投稿が少ない人ほど遅くなる(投稿10万件・フォロー0人で約0.5秒)ので、投稿者の ID を先に取って IN で渡す
      */

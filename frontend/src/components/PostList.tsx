@@ -1,3 +1,4 @@
+import { postKey } from "../loaders";
 import type { Post } from "../types";
 import type { Paged } from "../usePaged";
 import { MoreButton } from "./MoreButton";
@@ -17,9 +18,12 @@ export function PostList({ paged, emptyMessage, onDeleted }: Props) {
       <ul className="post-list">
         {items.map((post) => (
           <PostItem
-            key={post.id}
+            key={postKey(post)}
             post={post}
-            onChange={(changed) => setItems((list) => list.map((p) => (p.id === changed.id ? changed : p)))}
+            // 同じ投稿が元の投稿とリポストで何行かに出ていても、いいね数などは全部の行で揃える(誰のリポストかは行ごとに残す)
+            onChange={(changed) =>
+              setItems((list) => list.map((p) => (p.id === changed.id ? { ...changed, repostedBy: p.repostedBy } : p)))
+            }
             onDeleted={(id) => {
               setItems((list) => list.filter((p) => p.id !== id));
               onDeleted?.(id);

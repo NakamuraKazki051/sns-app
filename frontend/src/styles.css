@@ -237,6 +237,13 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: tr
 }
 .action:hover { color: var(--accent); text-decoration: none; }
 .action.liked, .action.liked:hover { color: #f91880; }
+.action.reposted, .action.reposted:hover { color: #00ba7c; }
+/* 自分の投稿のリポストボタン(押せない。数だけ見せる) */
+.action.unavailable:disabled { cursor: not-allowed; }
+.action.unavailable:hover { color: var(--muted); }
+/* 「○○さんがリポスト」 */
+.repost-label { margin: 0 0 2px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.repost-label a { color: var(--muted); }
 .action.delete { margin-left: auto; }
 .action.delete:hover { color: var(--danger); }
 .action:disabled { opacity: 0.6; cursor: wait; }

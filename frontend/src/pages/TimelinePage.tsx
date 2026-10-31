@@ -3,7 +3,7 @@ import { api, errorMessage } from "../api";
 import { Composer } from "../components/Composer";
 import { PostList } from "../components/PostList";
 import { useFeedback } from "../feedback";
-import { loadPosts } from "../loaders";
+import { loadPosts, postKey } from "../loaders";
 import type { Post } from "../types";
 import { usePaged } from "../usePaged";
 
@@ -12,7 +12,7 @@ export function TimelinePage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") === "all" ? "all" : "home";
   const path = tab === "all" ? "/api/timeline" : "/api/timeline/home";
-  const paged = usePaged<Post>(path, loadPosts(path));
+  const paged = usePaged<Post>(path, loadPosts(path), postKey);
   const { showError, showToast } = useFeedback();
 
   async function submit(text: string) {
