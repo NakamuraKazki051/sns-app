@@ -19,6 +19,7 @@
 | `backend/` | API（Java 25 + Spring Boot 4.1 + Maven） |
 | `prototype/` | 画面のモック（HTML/CSS/JS、ダミーデータ）。`index.html` をブラウザで開くだけで動く |
 | `perf/` | 性能テスト（k6 のシナリオ、テストデータの SQL、実行スクリプト） |
+| `infra/terraform/` | AWS 環境（EC2 + RDS MySQL）と、作る・デプロイする・消すスクリプト |
 | `docker-compose.yml` | ローカルの MySQL 8.4（ポート 3307） |
 
 ## ローカルで動かす
@@ -54,3 +55,15 @@ cd backend; mvn package -DskipTests; cd ..
 ```
 
 終わったら `docker compose stop` で MySQL を止めます（データは残ります）。
+
+## AWS で動かす
+
+使うときだけ作り、使い終わったら消します（DB はスナップショットに残して、次に作るときに戻します）。詳しくは [`infra/terraform/README.md`](./infra/terraform/README.md)。
+
+```powershell
+aws login --region ap-northeast-1
+cd infra/terraform
+./up.ps1       # 環境を作ってデプロイ（20分ほど）。最後に URL が出る
+./deploy.ps1   # コードを変えたらデプロイし直す
+./down.ps1     # 使い終わったら消す
+```
