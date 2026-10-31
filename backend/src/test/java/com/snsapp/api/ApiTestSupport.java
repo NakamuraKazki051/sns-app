@@ -92,7 +92,7 @@ public abstract class ApiTestSupport {
         return ids;
     }
 
-    /** 「もっと見る」を最後までたどって、全ページの投稿 ID を返す */
+    /** 「もっと見る」を最後までたどって(前のページの nextCursor を before に渡す)、全ページの投稿 ID を返す */
     protected List<String> allPages(String path, MockHttpSession session) throws Exception {
         List<String> all = new ArrayList<>();
         String before = null;
@@ -108,9 +108,10 @@ public abstract class ApiTestSupport {
             assertTrue(pageIds.size() <= 20);
             all.addAll(pageIds);
             if (!page.get("hasMore").asBoolean()) {
+                assertTrue(page.get("nextCursor").isNull());
                 return all;
             }
-            before = pageIds.getLast();
+            before = page.get("nextCursor").asString();
         }
     }
 }

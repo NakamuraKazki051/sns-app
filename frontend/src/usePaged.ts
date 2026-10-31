@@ -8,11 +8,13 @@ export type Paged<T extends { id: string }> = ReturnType<typeof usePaged<T>>;
 /**
  * 「もっと見る」で続きを読む一覧。cursor は前のページの最後の目印(投稿 ID など)。
  * 画面で足した項目(新しい投稿など)と目印は別に持つので、足しても続きの位置はずれない。
- * key が変わったら(別のユーザーページに移ったなど)読み直し、前の画面の応答が後から届いても捨てる
+ * key が変わったら(別のユーザーページに移ったなど)読み直し、前の画面の応答が後から届いても捨てる。
+ * itemKey は同じ項目かどうかの目印(既定は id。投稿の一覧は、リポストを区別するため postKey を渡す)
  */
 export function usePaged<T extends { id: string }>(
   key: string,
   fetchPage: (cursor: string | null) => Promise<Page<T>>,
+  itemKey: (item: T) => string = (item) => item.id,
 ) {
   const [items, setItems] = useState<T[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -22,6 +24,8 @@ export function usePaged<T extends { id: string }>(
   const generation = useRef(0);
   const fetchRef = useRef(fetchPage);
   fetchRef.current = fetchPage;
+  const itemKeyRef = useRef(itemKey);
+  itemKeyRef.current = itemKey;
 
   // 失敗したときに同じ読み込みをやり直すため、最後に読もうとした位置を覚えておく
   const lastAttempt = useRef<{ from: string | null; replace: boolean }>({ from: null, replace: true });
@@ -37,8 +41,8 @@ export function usePaged<T extends { id: string }>(
       setItems((prev) => {
         if (replace) return page.items;
         // 読んでいる間に削除などでずれても、同じ項目を2回出さない
-        const seen = new Set(prev.map((item) => item.id));
-        return [...prev, ...page.items.filter((item) => !seen.has(item.id))];
+        const seen = new Set(prev.map((item) => itemKeyRef.current(item)));
+        return [...prev, ...page.items.filter((item) => !seen.has(itemKeyRef.current(item)))];
       });
       setCursor(page.next);
       setHasMore(page.next !== null);

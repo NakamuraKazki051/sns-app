@@ -1,4 +1,4 @@
--- 性能テスト用のデータ（ユーザー1,000人・投稿10万件）
+-- 性能テスト用のデータ（ユーザー1,000人・投稿10万件・リポスト約2万件）
 -- 性能テスト専用の DB（snsapp_perf）に入れる。普段の DB には入れない。直接は実行せず、run.ps1 から実行する。
 -- 前提: run.ps1 がアプリを起動してテーブルを作り、API で perf_0000 を登録済み。ほかのユーザーはそのパスワードを使い回す。
 
@@ -54,11 +54,18 @@ SELECT p.id, u.id, '性能テストのリプライ', p.created_at
 FROM posts p JOIN perf_users u ON u.no = (p.id * 13) % 1000
 WHERE p.id % 5 = 0;
 
+-- リポスト: 1人20件ずつ、ほかの人の投稿を（計約2万件）。リポストした時刻はばらばらにする
+INSERT INTO reposts (user_id, post_id, created_at)
+SELECT u.id, p.id, NOW(6) - INTERVAL ((u.no * 37 + k.n * 4999) % 100000) MINUTE
+FROM perf_users u JOIN seq k ON k.n <= 20
+JOIN posts p ON p.id = (u.no * 97 + k.n * 1009) % 100000 + 1
+WHERE p.user_id <> u.id;
+
 -- 作業用の表を消す（MySQL の一時テーブルは1つのクエリで2回使えないので、ふつうの表にしていた）
 DROP TABLE seq, perf_users;
 
-ANALYZE TABLE users, posts, follows, likes, replies;
+ANALYZE TABLE users, posts, follows, likes, replies, reposts;
 
 SELECT (SELECT COUNT(*) FROM users) AS users, (SELECT COUNT(*) FROM posts) AS posts,
        (SELECT COUNT(*) FROM follows) AS follows, (SELECT COUNT(*) FROM likes) AS likes,
-       (SELECT COUNT(*) FROM replies) AS replies;
+       (SELECT COUNT(*) FROM replies) AS replies, (SELECT COUNT(*) FROM reposts) AS reposts;

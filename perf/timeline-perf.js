@@ -60,9 +60,9 @@ function get(path, name) {
     return res;
 }
 
-function lastPostId(res) {
-    const posts = res.status === 200 ? res.json('posts') : [];
-    return posts.length > 0 ? posts[posts.length - 1].id : null;
+// 次のページの目印。ホームは投稿とリポストが混ざるので、サーバーが返す nextCursor を使う
+function nextCursor(res) {
+    return res.status === 200 ? res.json('nextCursor') : null;
 }
 
 export function browse() {
@@ -74,9 +74,9 @@ export function browse() {
     get(`/api/timeline?before=${Math.floor(Math.random() * 100000) + 1}`, 'GET /api/timeline?before= (中ほど)');
 
     const home = get('/api/timeline/home', 'GET /api/timeline/home');
-    const before = lastPostId(home);
+    const before = nextCursor(home);
     if (before) {
-        get(`/api/timeline/home?before=${before}`, 'GET /api/timeline/home?before=');
+        get(`/api/timeline/home?before=${encodeURIComponent(before)}`, 'GET /api/timeline/home?before=');
     }
 
     get(`/api/users/${other}`, 'GET /api/users/{username}');

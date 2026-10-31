@@ -22,8 +22,25 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true }: Pro
   const navigate = useNavigate();
   const { showError } = useFeedback();
   const [liking, setLiking] = useState(false);
+  const [reposting, setReposting] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const detailPath = `/posts/${post.id}`;
+  const mine = post.user.id === me.id;
+
+  async function toggleRepost() {
+    if (reposting) return;
+    setReposting(true);
+    try {
+      const result = await api<{ reposted: boolean; repostsCount: number }>(`/api/posts/${post.id}/repost`, {
+        method: post.repostedByMe ? "DELETE" : "POST",
+      });
+      onChange({ ...post, repostedByMe: result.reposted, repostsCount: result.repostsCount });
+    } catch (e) {
+      showError(errorMessage(e));
+    } finally {
+      setReposting(false);
+    }
+  }
 
   async function toggleLike() {
     if (liking) return;
@@ -61,6 +78,21 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true }: Pro
         <Avatar user={post.user} />
       </Link>
       <div className="post-body">
+        {post.repostedBy && (
+          <p className="repost-label">
+            🔁{" "}
+            {post.repostedBy.id === me.id ? (
+              "リポストしました"
+            ) : (
+              <>
+                <Link to={`/@${post.repostedBy.username}`} onClick={(e) => e.stopPropagation()}>
+                  {post.repostedBy.displayName}
+                </Link>
+                さんがリポスト
+              </>
+            )}
+          </p>
+        )}
         <div className="post-meta">
           <Link to={`/@${post.user.username}`} className="name" onClick={(e) => e.stopPropagation()}>
             {post.user.displayName}
@@ -77,6 +109,18 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true }: Pro
           <Link to={detailPath} className="action" aria-label={`リプライ ${post.repliesCount}件`}>
             💬 <span>{post.repliesCount}</span>
           </Link>
+          {/* 自分の投稿はリポストできない(数だけ見せる) */}
+          <button
+            type="button"
+            className={["action", post.repostedByMe && "reposted", mine && "unavailable"].filter(Boolean).join(" ")}
+            aria-pressed={post.repostedByMe}
+            aria-label={post.repostedByMe ? "リポストを取り消す" : "リポスト"}
+            title={mine ? "自分の投稿はリポストできません" : undefined}
+            disabled={mine || reposting}
+            onClick={toggleRepost}
+          >
+            🔁 <span>{post.repostsCount}</span>
+          </button>
           <button
             type="button"
             className={post.likedByMe ? "action liked" : "action"}
@@ -87,7 +131,7 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true }: Pro
           >
             {post.likedByMe ? "♥" : "♡"} <span>{post.likesCount}</span>
           </button>
-          {post.user.id === me.id && (
+          {mine && (
             <button type="button" className="action delete" onClick={() => setConfirming(true)}>
               削除
             </button>
@@ -98,7 +142,7 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true }: Pro
         <div onClick={(e) => e.stopPropagation()}>
           <ConfirmDialog
             title="投稿を削除しますか？"
-            message="削除すると元に戻せません。リプライといいねも消えます。"
+            message="削除すると元に戻せません。リプライ・いいね・リポストも消えます。"
             confirmLabel="削除する"
             onConfirm={remove}
             onCancel={() => setConfirming(false)}

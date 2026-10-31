@@ -4,7 +4,6 @@ import com.snsapp.api.auth.CurrentUser;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.follow.Follow;
 import com.snsapp.api.follow.FollowRepository;
-import com.snsapp.api.post.PostController;
 import com.snsapp.api.post.PostDtos.PageResponse;
 import com.snsapp.api.post.PostRepository;
 import com.snsapp.api.post.PostViews;
@@ -96,16 +95,13 @@ public class UserController {
                 followRepository.existsByFollowerIdAndFolloweeId(viewerId, user.getId()), user.getCreatedAt());
     }
 
-    /** その人の投稿一覧。before(投稿 ID)を渡すと、それより古いものから */
+    /** その人の投稿とリポストの一覧。before には前のページの nextCursor を渡す */
     @GetMapping("/{username}/posts")
-    public PageResponse posts(@PathVariable String username, @RequestParam(required = false) Long before,
+    public PageResponse posts(@PathVariable String username, @RequestParam(required = false) String before,
                               HttpServletRequest httpRequest) {
         String viewerId = currentUser.require(httpRequest);
         User user = findUser(username);
-        Limit limit = Limit.of(PostController.PAGE_SIZE + 1);
-        return postViews.page(before == null
-                ? postRepository.findByUserIdOrderByIdDesc(user.getId(), limit)
-                : postRepository.findByUserIdAndIdLessThanOrderByIdDesc(user.getId(), before, limit), viewerId);
+        return postViews.feedOf(List.of(user.getId()), before, viewerId);
     }
 
     /** フォローする。もうフォロー済みならそのまま(何度押しても1回分) */

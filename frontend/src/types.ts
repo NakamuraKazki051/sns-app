@@ -41,9 +41,14 @@ export type Post = {
   likesCount: number;
   repliesCount: number;
   likedByMe: boolean;
+  repostsCount: number;
+  repostedByMe: boolean;
+  /** タイムラインでリポストとして出すときの、リポストした人。元の投稿なら null */
+  repostedBy: PublicUser | null;
 };
 
-export type PostPage = { posts: Post[]; hasMore: boolean };
+/** nextCursor は次のページを読むときに before に渡す値(続きがなければ null) */
+export type PostPage = { posts: Post[]; hasMore: boolean; nextCursor: string | null };
 
 export type Reply = {
   id: string;

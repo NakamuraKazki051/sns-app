@@ -75,16 +75,16 @@ public class PostController {
                 : postRepository.findByIdLessThanOrderByIdDesc(before, limit), userId);
     }
 
-    /** ホームタイムライン: 自分とフォロー中の人の投稿だけ */
+    /**
+     * ホームタイムライン: 自分とフォロー中の人の投稿と、その人たちのリポスト。
+     * before には前のページの nextCursor を渡す(投稿とリポストのどこまで出したかが入っている)
+     */
     @GetMapping("/timeline/home")
-    public PageResponse home(@RequestParam(required = false) Long before, HttpServletRequest httpRequest) {
+    public PageResponse home(@RequestParam(required = false) String before, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        Limit limit = Limit.of(PAGE_SIZE + 1);
         List<String> authorIds = new ArrayList<>(followRepository.findFolloweeIds(userId));
         authorIds.add(userId);
-        return postViews.page(before == null
-                ? postRepository.findByUserIdInOrderByIdDesc(authorIds, limit)
-                : postRepository.findByUserIdInAndIdLessThanOrderByIdDesc(authorIds, before, limit), userId);
+        return postViews.feedOf(authorIds, before, userId);
     }
 
     @GetMapping("/posts/{id}")
@@ -103,7 +103,7 @@ public class PostController {
         String body = bodyValue(request.body(), "投稿");
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.unauthorized("ログインしていません"));
-        return PostResponse.from(postRepository.save(new Post(user, body)), 0, 0, false);
+        return postViews.one(postRepository.save(new Post(user, body)), userId);
     }
 
     // 他人の投稿は 403 ではなく 404 にする(消せる投稿が存在しない、という扱い)。リプライといいねは DB が一緒に消す

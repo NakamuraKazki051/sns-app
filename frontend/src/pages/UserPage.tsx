@@ -5,7 +5,7 @@ import { useMe } from "../auth";
 import { Avatar } from "../components/Avatar";
 import { PostList } from "../components/PostList";
 import { useFeedback } from "../feedback";
-import { loadPosts } from "../loaders";
+import { loadPosts, postKey } from "../loaders";
 import type { Post, Profile } from "../types";
 import { usePaged } from "../usePaged";
 import { NotFoundPage } from "./NotFoundPage";
@@ -31,7 +31,7 @@ function UserPageContent({ username }: { username: string }) {
   const [notFound, setNotFound] = useState(false);
   const [following, setFollowing] = useState(false);
   const postsPath = `/api/users/${username}/posts`;
-  const posts = usePaged<Post>(postsPath, loadPosts(postsPath));
+  const posts = usePaged<Post>(postsPath, loadPosts(postsPath), postKey);
 
   useEffect(() => {
     let cancelled = false;

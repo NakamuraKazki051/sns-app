@@ -14,20 +14,27 @@ public class PostDtos {
     public record CreateRequest(String body) {
     }
 
-    // JavaScript の数値で誤差が出ないよう、ID は文字列で返す
+    /**
+     * 投稿1件。JavaScript の数値で誤差が出ないよう、ID は文字列で返す。
+     * タイムラインでリポストとして出すときは repostedBy にリポストした人が入る(元の投稿として出すときは null)
+     */
     public record PostResponse(String id, String body, Instant createdAt, PublicUser user, long likesCount,
-                               long repliesCount, boolean likedByMe) {
-        public static PostResponse from(Post post, long likesCount, long repliesCount, boolean likedByMe) {
-            return new PostResponse(post.getId().toString(), post.getBody(), post.getCreatedAt(),
-                    PublicUser.from(post.getUser()), likesCount, repliesCount, likedByMe);
-        }
+                               long repliesCount, boolean likedByMe, long repostsCount, boolean repostedByMe,
+                               PublicUser repostedBy) {
     }
 
-    /** 1ページ分の投稿と、「もっと見る」で続きを読めるか */
-    public record PageResponse(List<PostResponse> posts, boolean hasMore) {
+    /**
+     * 1ページ分の投稿と、「もっと見る」で続きを読めるか。
+     * nextCursor は次のページを読むときに before に渡す値(続きがなければ null)
+     */
+    public record PageResponse(List<PostResponse> posts, boolean hasMore, String nextCursor) {
     }
 
     /** いいね・取り消しの結果 */
     public record LikeResponse(boolean liked, long likesCount) {
+    }
+
+    /** リポスト・取り消しの結果 */
+    public record RepostResponse(boolean reposted, long repostsCount) {
     }
 }
