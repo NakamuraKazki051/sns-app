@@ -18,6 +18,10 @@ public interface FollowRepository extends JpaRepository<Follow, Long> {
 
     long countByFolloweeId(String followeeId);
 
+    /** フォロー中の人の ID(ホームタイムライン用) */
+    @Query("select f.followee.id from Follow f where f.follower.id = :followerId")
+    List<String> findFolloweeIds(@Param("followerId") String followerId);
+
     /** フォロー中の一覧(新しくフォローした順) */
     @EntityGraph(attributePaths = "followee")
     List<Follow> findByFollowerIdOrderByIdDesc(String followerId, Limit limit);

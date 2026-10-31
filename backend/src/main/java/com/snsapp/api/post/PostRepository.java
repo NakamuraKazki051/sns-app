@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,18 +30,16 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @EntityGraph(attributePaths = "user")
     Optional<Post> findWithUserById(Long id);
 
-    /** ホームタイムライン: 自分とフォロー中の人の投稿 */
+    /**
+     * ホームタイムライン: 渡した投稿者(自分とフォロー中の人)の投稿。
+     * 「自分 or フォロー中(サブクエリ)」の条件だと MySQL が投稿者の索引を使えず、投稿を新しい順に全件見ていく。
+     * 該当する投稿が少ない人ほど遅くなる(投稿10万件・フォロー0人で約0.5秒)ので、投稿者の ID を先に取って IN で渡す
+     */
     @EntityGraph(attributePaths = "user")
-    @Query("select p from Post p where p.user.id = :userId"
-            + " or p.user.id in (select f.followee.id from Follow f where f.follower.id = :userId)"
-            + " order by p.id desc")
-    List<Post> findHome(@Param("userId") String userId, Limit limit);
+    List<Post> findByUserIdInOrderByIdDesc(Collection<String> userIds, Limit limit);
 
     @EntityGraph(attributePaths = "user")
-    @Query("select p from Post p where p.id < :before and (p.user.id = :userId"
-            + " or p.user.id in (select f.followee.id from Follow f where f.follower.id = :userId))"
-            + " order by p.id desc")
-    List<Post> findHomeBefore(@Param("userId") String userId, @Param("before") Long before, Limit limit);
+    List<Post> findByUserIdInAndIdLessThanOrderByIdDesc(Collection<String> userIds, Long before, Limit limit);
 
     long countByUserId(String userId);
 

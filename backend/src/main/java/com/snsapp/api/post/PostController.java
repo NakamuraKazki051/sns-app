@@ -4,6 +4,7 @@ import com.snsapp.api.auth.CurrentUser;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.RateLimiter;
 import com.snsapp.api.common.TextLength;
+import com.snsapp.api.follow.FollowRepository;
 import com.snsapp.api.like.PostLike;
 import com.snsapp.api.like.PostLikeRepository;
 import com.snsapp.api.post.PostDtos.CreateRequest;
@@ -27,6 +28,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api")
@@ -44,16 +47,18 @@ public class PostController {
 
     private final PostRepository postRepository;
     private final PostLikeRepository likeRepository;
+    private final FollowRepository followRepository;
     private final UserRepository userRepository;
     private final PostViews postViews;
     private final CurrentUser currentUser;
     private final RateLimiter rateLimiter;
 
     public PostController(PostRepository postRepository, PostLikeRepository likeRepository,
-                          UserRepository userRepository, PostViews postViews, CurrentUser currentUser,
-                          RateLimiter rateLimiter) {
+                          FollowRepository followRepository, UserRepository userRepository, PostViews postViews,
+                          CurrentUser currentUser, RateLimiter rateLimiter) {
         this.postRepository = postRepository;
         this.likeRepository = likeRepository;
+        this.followRepository = followRepository;
         this.userRepository = userRepository;
         this.postViews = postViews;
         this.currentUser = currentUser;
@@ -75,9 +80,11 @@ public class PostController {
     public PageResponse home(@RequestParam(required = false) Long before, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         Limit limit = Limit.of(PAGE_SIZE + 1);
+        List<String> authorIds = new ArrayList<>(followRepository.findFolloweeIds(userId));
+        authorIds.add(userId);
         return postViews.page(before == null
-                ? postRepository.findHome(userId, limit)
-                : postRepository.findHomeBefore(userId, before, limit), userId);
+                ? postRepository.findByUserIdInOrderByIdDesc(authorIds, limit)
+                : postRepository.findByUserIdInAndIdLessThanOrderByIdDesc(authorIds, before, limit), userId);
     }
 
     @GetMapping("/posts/{id}")
