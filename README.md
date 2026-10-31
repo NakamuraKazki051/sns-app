@@ -18,6 +18,7 @@
 | `frontend/` | 画面（React 19 + TypeScript + Vite） |
 | `backend/` | API（Java 25 + Spring Boot 4.1 + Maven） |
 | `prototype/` | 画面のモック（HTML/CSS/JS、ダミーデータ）。`index.html` をブラウザで開くだけで動く |
+| `perf/` | 性能テスト（k6 のシナリオ、テストデータの SQL、実行スクリプト） |
 | `docker-compose.yml` | ローカルの MySQL 8.4（ポート 3307） |
 
 ## ローカルで動かす
@@ -43,6 +44,13 @@ java -jar target/sns-api-0.1.0.jar      # http://localhost:8080 を開く
 ```powershell
 cd backend; mvn test      # API（H2 を使うので MySQL は不要）
 cd frontend; npm test     # 画面（Vitest）
+```
+
+性能テスト（ユーザー1,000人・投稿10万件。テスト用の DB を作って、終わったら消す。k6 が必要）:
+
+```powershell
+cd backend; mvn package -DskipTests; cd ..
+./perf/run.ps1
 ```
 
 終わったら `docker compose stop` で MySQL を止めます（データは残ります）。
