@@ -5,7 +5,11 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
+  # 本番と同じく Flyway の SQL でテーブルを作り、エンティティとずれていないかを validate で確かめる
+  flyway:
+    placeholders:
+      icon_data_type: VARBINARY(1048576)
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
     open-in-view: false

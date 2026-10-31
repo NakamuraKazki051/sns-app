@@ -6,9 +6,16 @@ spring:
     url: ${DB_URL:jdbc:mysql://localhost:3307/snsapp_development}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:snsapp}
+  # テーブルは Flyway が db/migration の SQL で作る。Hibernate はエンティティと合っているかを確かめるだけ
+  flyway:
+    # Flyway を入れる前から使っている DB(テーブルはあるが履歴が無い)は、V1 まで済みとして扱う
+    baseline-on-migrate: true
+    baseline-version: 1
+    placeholders:
+      icon_data_type: MEDIUMBLOB
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
   # アイコン画像は1MBまで。リクエスト全体はフォームの区切りなどの分だけ少し余裕を持たせる
   servlet:
