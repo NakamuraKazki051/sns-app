@@ -97,6 +97,7 @@ resource "aws_instance" "app" {
     db_name               = aws_db_instance.db.db_name
     db_username           = aws_db_instance.db.username
     db_password_parameter = aws_ssm_parameter.db_password.name
+    images_bucket         = data.aws_s3_bucket.images.bucket
   })
 
   # CPUを使いすぎたときに追加料金が出る「unlimited」モードにしない
@@ -108,6 +109,9 @@ resource "aws_instance" "app" {
   metadata_options {
     http_tokens   = "required"
     http_endpoint = "enabled"
+    # アプリは Docker のコンテナの中で動くので、メタデータ(S3 を使うための一時的な鍵)まで
+    # 1段多く届くようにする(既定の 1 だと、コンテナからは IMDSv2 のトークンが取れない)
+    http_put_response_hop_limit = 2
   }
 
   root_block_device {

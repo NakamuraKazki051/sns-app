@@ -45,10 +45,18 @@ export type Post = {
   repostedByMe: boolean;
   /** タイムラインでリポストとして出すときの、リポストした人。元の投稿なら null */
   repostedBy: PublicUser | null;
+  /** 添付した画像(1枚まで)。無ければ null */
+  image: PostImage | null;
 };
+
+/** 投稿の画像。幅と高さで、読み込む前に枠の形を決める(読み込んだときに一覧がガタつかないように) */
+export type PostImage = { url: string; width: number; height: number };
 
 /** nextCursor は次のページを読むときに before に渡す値(続きがなければ null) */
 export type PostPage = { posts: Post[]; hasMore: boolean; nextCursor: string | null };
+
+/** 今見ている一覧より新しい、他の人の投稿の数(上限100)と、その投稿者(3人まで) */
+export type NewPosts = { count: number; users: PublicUser[] };
 
 export type Reply = {
   id: string;

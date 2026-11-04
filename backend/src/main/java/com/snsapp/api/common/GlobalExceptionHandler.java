@@ -40,7 +40,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiError> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
         return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
-                .body(ApiError.of(HttpStatus.CONTENT_TOO_LARGE.value(), "ファイルが大きすぎます(アイコン画像は1MBまで)"));
+                .body(ApiError.of(HttpStatus.CONTENT_TOO_LARGE.value(), "ファイルが大きすぎます(投稿の画像は5MBまで)"));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

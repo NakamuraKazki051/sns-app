@@ -146,7 +146,8 @@ public class PostViews {
                     return new PostResponse(id.toString(), post.getBody(), post.getCreatedAt(),
                             PublicUser.from(post.getUser()), likes.getOrDefault(id, 0L),
                             replies.getOrDefault(id, 0L), liked.contains(id), reposts.getOrDefault(id, 0L),
-                            reposted.contains(id), e.repostedBy() == null ? null : PublicUser.from(e.repostedBy()));
+                            reposted.contains(id), e.repostedBy() == null ? null : PublicUser.from(e.repostedBy()),
+                            PostDtos.ImageResponse.of(post));
                 })
                 .toList();
     }

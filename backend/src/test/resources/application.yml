@@ -13,3 +13,8 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+
+# 投稿の画像はテスト用のフォルダに置く(target の中なので mvn clean で消える)
+app:
+  images:
+    dir: target/test-post-images

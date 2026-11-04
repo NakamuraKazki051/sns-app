@@ -9,9 +9,11 @@ type Props = {
   emptyMessage: string;
   /** 投稿を消したあと(ユーザーページの投稿数を減らすなど) */
   onDeleted?: (id: string) => void;
+  /** 新着として読み込んだ投稿か(色を付ける) */
+  isNew?: (post: Post) => boolean;
 };
 
-export function PostList({ paged, emptyMessage, onDeleted }: Props) {
+export function PostList({ paged, emptyMessage, onDeleted, isNew }: Props) {
   const { items, setItems } = paged;
   return (
     <>
@@ -20,6 +22,7 @@ export function PostList({ paged, emptyMessage, onDeleted }: Props) {
           <PostItem
             key={postKey(post)}
             post={post}
+            isNew={isNew?.(post) ?? false}
             // 同じ投稿が元の投稿とリポストで何行かに出ていても、いいね数などは全部の行で揃える(誰のリポストかは行ごとに残す)
             onChange={(changed) =>
               setItems((list) => list.map((p) => (p.id === changed.id ? { ...changed, repostedBy: p.repostedBy } : p)))

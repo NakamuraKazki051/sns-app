@@ -20,7 +20,24 @@ public class PostDtos {
      */
     public record PostResponse(String id, String body, Instant createdAt, PublicUser user, long likesCount,
                                long repliesCount, boolean likedByMe, long repostsCount, boolean repostedByMe,
-                               PublicUser repostedBy) {
+                               PublicUser repostedBy, ImageResponse image) {
+    }
+
+    /** 投稿の画像(無ければ PostResponse.image が null)。幅と高さで、読み込む前に枠の形を決められる */
+    public record ImageResponse(String url, int width, int height) {
+
+        static ImageResponse of(Post post) {
+            PostImage image = post.getImage();
+            return image == null ? null
+                    : new ImageResponse("/api/posts/" + post.getId() + "/image", image.width(), image.height());
+        }
+    }
+
+    /**
+     * 今見ている一覧の先頭より新しい、他の人の投稿(新着のお知らせ用)。
+     * count は数(上限 NEW_POSTS_MAX)、users は新しい投稿の投稿者(重複なしで3人まで、アイコンを並べる)
+     */
+    public record NewPostsResponse(long count, List<PublicUser> users) {
     }
 
     /**
