@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router";
 import { useAuth, useMe } from "../auth";
 
@@ -16,6 +16,18 @@ export function Layout() {
   const me = useMe();
   const { logout } = useAuth();
   const [theme, setTheme] = useState<Theme>(() => document.documentElement.dataset.theme as Theme);
+  const headerRef = useRef<HTMLElement>(null);
+
+  // メニューは幅によって2〜3行に折り返す。タブなどをヘッダーのすぐ下に固定できるよう、実際の高さを CSS に渡す(切り捨てて、隙間が空かないよう少し重ねる)
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      document.documentElement.style.setProperty("--header-h", `${Math.floor(header.getBoundingClientRect().height)}px`);
+    });
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
@@ -32,7 +44,7 @@ export function Layout() {
   const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? "active" : undefined);
   return (
     <>
-      <header className="header">
+      <header className="header" ref={headerRef}>
         <div className="header-inner">
           <Link to="/" className="logo">
             RaiseLine

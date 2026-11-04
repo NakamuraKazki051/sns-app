@@ -9,6 +9,8 @@
   --accent-hover: #1a8cd8;
   --danger: #f4212e;
   --error-bg: #fdecee;
+  /* ヘッダーの高さ。幅によって折り返すので、Layout が実際の高さを測って入れ直す */
+  --header-h: 55px;
 }
 :root[data-theme="dark"] {
   --bg: #000000;
@@ -265,7 +267,7 @@ a.button { display: inline-block; text-decoration: none; }
 .search-form { display: flex; gap: 8px; }
 .search-form input { flex: 1; }
 a.tab { text-align: center; text-decoration: none; }
-.sticky-tabs { position: sticky; top: 57px; z-index: 5; background: var(--bg); }
+.sticky-tabs { position: sticky; top: var(--header-h); z-index: 5; background: var(--bg); }
 
 /* リプライ */
 .post.reply { background: var(--bg); }
@@ -350,7 +352,16 @@ small.over { color: var(--danger); font-weight: 700; }
 
 /* ===== 新着のお知らせ ===== */
 /* 一覧の上(タブの下)に浮かせる。高さを取らないので、出たり消えたりしても一覧はずれない */
-.new-posts-anchor { position: sticky; top: 110px; z-index: 6; height: 0; display: flex; justify-content: center; }
+/* 高さ0の箱なので、stretch のままだとボタンまで潰れる。align-items で元の高さを保つ */
+.new-posts-anchor {
+  position: sticky;
+  top: calc(var(--header-h) + 53px);
+  z-index: 6;
+  height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
 .new-posts-banner {
   margin-top: 8px;
   display: inline-flex;
@@ -377,9 +388,6 @@ small.over { color: var(--danger); font-weight: 700; }
 .post.new { animation: new-post-highlight 3s ease-out; }
 @keyframes new-post-highlight { from { background: rgba(29, 155, 240, 0.18); } to { background: transparent; } }
 
-@media (max-width: 600px) {
-  .new-posts-anchor { top: 96px; }
-}
 @media (prefers-reduced-motion: reduce) {
   .new-posts-banner, .post.new { animation: none; }
   .post.new { background: rgba(29, 155, 240, 0.12); }

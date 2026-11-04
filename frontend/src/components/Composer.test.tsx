@@ -92,6 +92,8 @@ describe("Composer の画像", () => {
     await userEvent.click(await screen.findByRole("button", { name: "画像を外す" }));
     expect(screen.queryByAltText("添付する画像")).toBeNull();
     expect(button.disabled).toBe(true);
+    // ×のボタンが消えても、続けて入力できるよう入力欄へ移る
+    expect(document.activeElement).toBe(screen.getByLabelText("いまどうしてる？"));
   });
 
   it("使えない画像はその場で理由を出す", async () => {

@@ -23,6 +23,7 @@ export function Composer({ placeholder, submitLabel, allowImage = false, onSubmi
   const [imageError, setImageError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const remaining = POST_MAX - countChars(text.trim());
   const hasContent = text.trim() !== "" || image !== null;
   const canSubmit = hasContent && remaining >= 0 && !sending && !preparing;
@@ -94,6 +95,7 @@ export function Composer({ placeholder, submitLabel, allowImage = false, onSubmi
   return (
     <form className="card composer" onSubmit={submit}>
       <textarea
+        ref={textareaRef}
         rows={3}
         value={text}
         placeholder={placeholder}
@@ -110,7 +112,11 @@ export function Composer({ placeholder, submitLabel, allowImage = false, onSubmi
             className="composer-image-remove"
             aria-label="画像を外す"
             disabled={sending}
-            onClick={removeImage}
+            onClick={() => {
+              removeImage();
+              // ×のボタンが消えるので、続けて操作できるよう入力欄へ移す
+              textareaRef.current?.focus();
+            }}
           >
             ×
           </button>

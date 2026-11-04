@@ -10,8 +10,14 @@ type Props = {
 export function ImageViewer({ src, alt, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  // 開くと×へ移り、閉じたら開いたボタンへ戻す(キーボードで操作している人が場所を見失わないように)
   useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
     closeRef.current?.focus();
+    return () => opener?.focus();
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     // 開いている間は後ろの一覧がスクロールしないようにする
