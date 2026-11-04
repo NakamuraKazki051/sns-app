@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, errorMessage } from "../api";
 import { useMe } from "../auth";
@@ -7,6 +7,7 @@ import { fullTime, relativeTime } from "../text";
 import type { Post } from "../types";
 import { Avatar } from "./Avatar";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ImageViewer } from "./ImageViewer";
 
 type Props = {
   post: Post;
@@ -15,15 +16,19 @@ type Props = {
   onDeleted: (id: string) => void;
   /** 一覧では本文を押すと詳細ページへ。詳細ページ自身では移らない */
   linkToDetail?: boolean;
+  /** 新着として読み込んだばかりの投稿。少しの間だけ色を付けて、どこまでが新しいか分かるようにする */
+  isNew?: boolean;
 };
 
-export function PostItem({ post, onChange, onDeleted, linkToDetail = true }: Props) {
+export function PostItem({ post, onChange, onDeleted, linkToDetail = true, isNew = false }: Props) {
   const me = useMe();
   const navigate = useNavigate();
   const { showError } = useFeedback();
   const [liking, setLiking] = useState(false);
   const [reposting, setReposting] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [viewing, setViewing] = useState(false);
+  const closeViewer = useCallback(() => setViewing(false), []);
   const detailPath = `/posts/${post.id}`;
   const mine = post.user.id === me.id;
 
@@ -73,7 +78,7 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true }: Pro
   }
 
   return (
-    <li className={linkToDetail ? "post clickable" : "post"} onClick={openDetail}>
+    <li className={["post", linkToDetail && "clickable", isNew && "new"].filter(Boolean).join(" ")} onClick={openDetail}>
       <Link to={`/@${post.user.username}`} onClick={(e) => e.stopPropagation()}>
         <Avatar user={post.user} />
       </Link>
@@ -104,7 +109,28 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true }: Pro
           </Link>
         </div>
         {/* 本文は文字として出す(HTML として解釈しない)。改行は CSS の pre-wrap でそのまま見せる */}
-        <p className="post-text">{post.body}</p>
+        {post.body !== "" && <p className="post-text">{post.body}</p>}
+        {post.image && (
+          // 幅と高さを先に渡して枠を取っておく(読み込んだときに下の投稿がずれない)。押すと大きく見られる
+          <button
+            type="button"
+            className="post-image"
+            aria-label="画像を大きく見る"
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewing(true);
+            }}
+          >
+            <img
+              src={post.image.url}
+              width={post.image.width}
+              height={post.image.height}
+              alt={post.body === "" ? `${post.user.displayName}さんの画像` : ""}
+              loading="lazy"
+              decoding="async"
+            />
+          </button>
+        )}
         <div className="post-actions" onClick={(e) => e.stopPropagation()}>
           <Link to={detailPath} className="action" aria-label={`リプライ ${post.repliesCount}件`}>
             💬 <span>{post.repliesCount}</span>
@@ -138,6 +164,11 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true }: Pro
           )}
         </div>
       </div>
+      {viewing && post.image && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ImageViewer src={post.image.url} alt={post.body || `${post.user.displayName}さんの画像`} onClose={closeViewer} />
+        </div>
+      )}
       {confirming && (
         <div onClick={(e) => e.stopPropagation()}>
           <ConfirmDialog

@@ -60,6 +60,8 @@ services:
       DB_USERNAME: ${db_username}
       DB_PASSWORD: $${DB_PASSWORD}
       TZ: Asia/Tokyo
+      # 投稿の画像は S3 に置く（バケットは storage/ の Terraform で作ってある）
+      IMAGES_S3_BUCKET: ${images_bucket}
     volumes:
       - ./app.jar:/app/app.jar:ro
     command: ["java", "-Xmx384m", "-Xss512k", "-XX:MaxMetaspaceSize=128m", "-jar", "/app/app.jar"]

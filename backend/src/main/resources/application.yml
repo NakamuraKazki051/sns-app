@@ -17,11 +17,18 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
-  # アイコン画像は1MBまで。リクエスト全体はフォームの区切りなどの分だけ少し余裕を持たせる
+  # 投稿の画像は5MBまで(アイコンの1MBは MeController が確かめる)。
+  # リクエスト全体は本文とフォームの区切りなどの分だけ少し余裕を持たせる
   servlet:
     multipart:
-      max-file-size: 1MB
-      max-request-size: 2MB
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+# 投稿の画像の置き場所。IMAGES_S3_BUCKET があれば S3(AWS)、無ければ dir のフォルダ(ローカル)
+app:
+  images:
+    s3-bucket: ${IMAGES_S3_BUCKET:}
+    dir: ${IMAGES_DIR:data/post-images}
 
 server:
   port: 8080

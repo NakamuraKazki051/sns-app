@@ -2,6 +2,7 @@ package com.snsapp.api.post;
 
 import com.snsapp.api.user.User;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -37,13 +38,26 @@ public class Post {
     @Column(nullable = false)
     private Instant createdAt;
 
+    // 画像(1枚まで)。無ければ null。画像だけの投稿では body が空文字になる
+    @Embedded
+    private PostImage image;
+
     protected Post() {
     }
 
     public Post(User user, String body) {
+        this(user, body, null);
+    }
+
+    public Post(User user, String body, PostImage image) {
         this.user = user;
         this.body = body;
+        this.image = image;
         this.createdAt = Instant.now();
+    }
+
+    public PostImage getImage() {
+        return image;
     }
 
     public Long getId() {

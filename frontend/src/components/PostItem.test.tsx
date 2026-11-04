@@ -24,6 +24,7 @@ function post(overrides: Partial<Post> = {}): Post {
     repostsCount: 0,
     repostedByMe: false,
     repostedBy: null,
+    image: null,
     ...overrides,
   };
 }
@@ -79,5 +80,26 @@ describe("PostItem のリポスト", () => {
   it("自分のリポストは「リポストしました」", () => {
     renderItem(post({ user: CAROL, repostedBy: ME }));
     expect(screen.getByText(/リポストしました/)).toBeTruthy();
+  });
+});
+
+describe("PostItem の画像", () => {
+  it("画像があれば枠の大きさを付けて出し、押すと大きく見られる(詳細ページへは移らない)", async () => {
+    renderItem(post({ image: { url: "/api/posts/10/image", width: 400, height: 300 } }));
+    const img = document.querySelector(".post-image img") as HTMLImageElement;
+    expect(img.getAttribute("src")).toBe("/api/posts/10/image");
+    expect(img.getAttribute("width")).toBe("400");
+    expect(img.getAttribute("height")).toBe("300");
+
+    await userEvent.click(screen.getByRole("button", { name: "画像を大きく見る" }));
+    expect(screen.getByRole("dialog", { name: "画像" })).toBeTruthy();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "画像" })).toBeNull();
+  });
+
+  it("画像だけの投稿では本文の行を出さない", () => {
+    renderItem(post({ body: "", image: { url: "/api/posts/10/image", width: 10, height: 10 } }));
+    expect(document.querySelector(".post-text")).toBeNull();
+    expect(screen.getByAltText("ボブさんの画像")).toBeTruthy();
   });
 });

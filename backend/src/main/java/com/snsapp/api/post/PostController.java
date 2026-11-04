@@ -2,6 +2,7 @@ package com.snsapp.api.post;
 
 import com.snsapp.api.auth.CurrentUser;
 import com.snsapp.api.common.ApiException;
+import com.snsapp.api.common.ImageFiles;
 import com.snsapp.api.common.RateLimiter;
 import com.snsapp.api.common.TextLength;
 import com.snsapp.api.follow.FollowRepository;
@@ -9,14 +10,21 @@ import com.snsapp.api.like.PostLike;
 import com.snsapp.api.like.PostLikeRepository;
 import com.snsapp.api.post.PostDtos.CreateRequest;
 import com.snsapp.api.post.PostDtos.LikeResponse;
+import com.snsapp.api.post.PostDtos.NewPostsResponse;
 import com.snsapp.api.post.PostDtos.PageResponse;
 import com.snsapp.api.post.PostDtos.PostResponse;
 import com.snsapp.api.user.User;
+import com.snsapp.api.user.UserDtos.PublicUser;
 import com.snsapp.api.user.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,14 +34,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
 public class PostController {
+
+    private static final Logger log = LoggerFactory.getLogger(PostController.class);
 
     /** 1ページの件数(タイムライン・ユーザーページ共通) */
     public static final int PAGE_SIZE = PostViews.PAGE_SIZE;
@@ -45,6 +58,11 @@ public class PostController {
     // 見た目で140字でも、結合文字を大量に重ねた文字列は巨大になりうる。数える前に生の長さでも止める
     static final int BODY_MAX_CHARS = 2000;
 
+    /** 新着の数はここまでしか数えない(画面は「99+」と出す) */
+    public static final int NEW_POSTS_MAX = 100;
+    /** 新着のお知らせに並べるアイコンの数 */
+    static final int NEW_POSTS_USERS = 3;
+
     private final PostRepository postRepository;
     private final PostLikeRepository likeRepository;
     private final FollowRepository followRepository;
@@ -52,10 +70,11 @@ public class PostController {
     private final PostViews postViews;
     private final CurrentUser currentUser;
     private final RateLimiter rateLimiter;
+    private final ImageStorage imageStorage;
 
     public PostController(PostRepository postRepository, PostLikeRepository likeRepository,
                           FollowRepository followRepository, UserRepository userRepository, PostViews postViews,
-                          CurrentUser currentUser, RateLimiter rateLimiter) {
+                          CurrentUser currentUser, RateLimiter rateLimiter, ImageStorage imageStorage) {
         this.postRepository = postRepository;
         this.likeRepository = likeRepository;
         this.followRepository = followRepository;
@@ -63,6 +82,7 @@ public class PostController {
         this.postViews = postViews;
         this.currentUser = currentUser;
         this.rateLimiter = rateLimiter;
+        this.imageStorage = imageStorage;
     }
 
     /** 全体タイムライン。before(投稿 ID)を渡すと、それより古いものから */
@@ -82,9 +102,45 @@ public class PostController {
     @GetMapping("/timeline/home")
     public PageResponse home(@RequestParam(required = false) String before, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
+        return postViews.feedOf(authorsOfHome(userId), before, userId);
+    }
+
+    /**
+     * 全体タイムラインの新着: after(画面に出ている一番新しい投稿の ID)より新しい、他の人の投稿の数。
+     * 画面が30秒ごとに聞きに来て、あれば「新しい投稿 N件」を出す
+     */
+    @GetMapping("/timeline/new")
+    public NewPostsResponse newPosts(@RequestParam long after, HttpServletRequest httpRequest) {
+        String userId = currentUser.require(httpRequest);
+        return newPostsOf(postRepository.findByIdGreaterThanAndUserIdNotOrderByIdDesc(
+                after, userId, Limit.of(NEW_POSTS_MAX)));
+    }
+
+    /** ホームタイムラインの新着: フォロー中の人の新しい投稿(自分の投稿とリポストは数えない) */
+    @GetMapping("/timeline/home/new")
+    public NewPostsResponse newHomePosts(@RequestParam long after, HttpServletRequest httpRequest) {
+        String userId = currentUser.require(httpRequest);
+        List<String> followees = followRepository.findFolloweeIds(userId);
+        if (followees.isEmpty()) {
+            return new NewPostsResponse(0, List.of());
+        }
+        return newPostsOf(postRepository.findByUserIdInAndIdGreaterThanOrderByIdDesc(
+                followees, after, Limit.of(NEW_POSTS_MAX)));
+    }
+
+    private static NewPostsResponse newPostsOf(List<Post> posts) {
+        List<PublicUser> users = posts.stream()
+                .map(post -> PublicUser.from(post.getUser()))
+                .distinct()
+                .limit(NEW_POSTS_USERS)
+                .toList();
+        return new NewPostsResponse(posts.size(), users);
+    }
+
+    private List<String> authorsOfHome(String userId) {
         List<String> authorIds = new ArrayList<>(followRepository.findFolloweeIds(userId));
         authorIds.add(userId);
-        return postViews.feedOf(authorIds, before, userId);
+        return authorIds;
     }
 
     @GetMapping("/posts/{id}")
@@ -97,13 +153,72 @@ public class PostController {
     @ResponseStatus(HttpStatus.CREATED)
     public PostResponse create(@RequestBody CreateRequest request, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        if (!rateLimiter.tryAcquire("post:" + userId, POSTS_PER_WINDOW, POST_WINDOW)) {
-            throw ApiException.tooManyRequests("投稿が多すぎます。1分ほど待ってからもう一度お試しください");
-        }
+        acquirePostSlot(userId);
         String body = bodyValue(request.body(), "投稿");
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> ApiException.unauthorized("ログインしていません"));
-        return postViews.one(postRepository.save(new Post(user, body)), userId);
+        return postViews.one(postRepository.save(new Post(findUser(userId), body)), userId);
+    }
+
+    /**
+     * 画像付きの投稿(multipart/form-data)。image に JPEG か PNG を1枚(5MBまで)、body に本文。
+     * 画像があれば本文は空でもよい
+     */
+    @PostMapping(path = "/posts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public PostResponse createWithImage(@RequestParam(value = "body", required = false) String body,
+                                        @RequestParam("image") MultipartFile file,
+                                        HttpServletRequest httpRequest) throws IOException {
+        String userId = currentUser.require(httpRequest);
+        String text = body == null || body.isBlank() ? "" : bodyValue(body, "投稿");
+        if (file.isEmpty()) {
+            throw ApiException.badRequest("画像を選んでください");
+        }
+        if (file.getSize() > PostImage.MAX_BYTES) {
+            throw ApiException.payloadTooLarge("画像は5MBまでです");
+        }
+        byte[] data = file.getBytes();
+        String contentType = ImageFiles.detectType(data);
+        if (contentType == null) {
+            throw ApiException.badRequest("画像は JPEG か PNG にしてください");
+        }
+        ImageFiles.Size size = ImageFiles.readSize(data);
+        if (size == null) {
+            throw ApiException.badRequest("画像を読み込めませんでした。別の画像でお試しください");
+        }
+        if (size.width() > PostImage.MAX_SIDE || size.height() > PostImage.MAX_SIDE) {
+            throw ApiException.badRequest("画像が大きすぎます(縦・横それぞれ" + PostImage.MAX_SIDE + "ピクセルまで)");
+        }
+        // 入力の確認がすべて済んでから回数に数える(形式違いで弾かれた分は数えない)
+        acquirePostSlot(userId);
+        User user = findUser(userId);
+
+        // 画像を先に置き、投稿を保存できなかったら画像を消す(画像の無い投稿が残らないように)
+        String key = UUID.randomUUID().toString();
+        imageStorage.put(key, data, contentType);
+        try {
+            Post post = postRepository.save(new Post(user, text,
+                    new PostImage(key, contentType, size.width(), size.height())));
+            return postViews.one(post, userId);
+        } catch (RuntimeException e) {
+            deleteImageQuietly(key);
+            throw e;
+        }
+    }
+
+    /** 投稿の画像。投稿の画像は後から変わらないので、ブラウザには長くキャッシュさせる */
+    @GetMapping("/posts/{id}/image")
+    public ResponseEntity<byte[]> image(@PathVariable Long id, HttpServletRequest httpRequest) throws IOException {
+        currentUser.require(httpRequest);
+        PostImage image = postRepository.findById(id).map(Post::getImage)
+                .orElseThrow(() -> ApiException.notFound("画像が見つかりません: " + id));
+        byte[] data = imageStorage.get(image.key());
+        if (data == null) {
+            throw ApiException.notFound("画像が見つかりません: " + id);
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(image.contentType()))
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePrivate().immutable())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(data);
     }
 
     // 他人の投稿は 403 ではなく 404 にする(消せる投稿が存在しない、という扱い)。リプライといいねは DB が一緒に消す
@@ -111,8 +226,13 @@ public class PostController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
+        PostImage image = postRepository.findByIdAndUserId(id, userId).map(Post::getImage).orElse(null);
         if (postRepository.deleteOwn(id, userId) == 0) {
             throw ApiException.notFound("投稿が見つかりません: " + id);
+        }
+        // 投稿を消したあとで画像を消す(画像だけ先に消えて、表示が壊れた投稿が残らないように)
+        if (image != null) {
+            deleteImageQuietly(image.key());
         }
     }
 
@@ -143,6 +263,26 @@ public class PostController {
     public Post findPost(Long id) {
         return postRepository.findWithUserById(id)
                 .orElseThrow(() -> ApiException.notFound("投稿が見つかりません: " + id));
+    }
+
+    private void acquirePostSlot(String userId) {
+        if (!rateLimiter.tryAcquire("post:" + userId, POSTS_PER_WINDOW, POST_WINDOW)) {
+            throw ApiException.tooManyRequests("投稿が多すぎます。1分ほど待ってからもう一度お試しください");
+        }
+    }
+
+    private User findUser(String userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> ApiException.unauthorized("ログインしていません"));
+    }
+
+    // 画像が消せなくても投稿の操作は失敗にしない(置き場所にゴミが残るだけ)。ログには残す
+    private void deleteImageQuietly(String key) {
+        try {
+            imageStorage.delete(key);
+        } catch (Exception e) {
+            log.warn("投稿の画像を消せませんでした: {}", key, e);
+        }
     }
 
     /** 改行は残し、前後の空白だけ取る。空白だけ・140字超えは受け付けない(投稿とリプライ共通) */

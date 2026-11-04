@@ -13,7 +13,8 @@ AWS の無料枠の範囲で、RaiseLine を動かす EC2 を1台と、RDS（MyS
 | セキュリティグループ（RDS） | 3306番を **アプリのEC2からだけ** 許可する。RDSはインターネットから接続できない（`publicly_accessible = false`） |
 | Parameter Store | DBのパスワード（SecureString。標準パラメータなので無料） |
 | S3バケット | デプロイするファイル（`app.jar`）の受け渡し場所。非公開・暗号化。環境と一緒に消える |
-| IAMロール | Session Manager の権限、DBのパスワードのパラメータ1つを読む権限、S3バケットのファイルを読む権限だけ |
+| S3バケット（画像） | 投稿の画像（`post-images/`）。非公開・暗号化・https のみ。**`storage/` の別の Terraform で作り、`down.ps1` では消さない**（投稿は DB のスナップショットで残るので、画像も残す）。`up.ps1` が毎回 apply する（あれば何もしない）。消すには `prevent_destroy` を外してから `storage/` で destroy する |
+| IAMロール | Session Manager の権限、DBのパスワードのパラメータ1つを読む権限、デプロイ用のS3バケットのファイルを読む権限、画像のバケットの `post-images/` の中だけを読み書き・削除する権限 |
 
 ## 構成
 

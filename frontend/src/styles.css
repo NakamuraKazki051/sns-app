@@ -274,3 +274,113 @@ a.tab { text-align: center; text-decoration: none; }
 small.over { color: var(--danger); font-weight: 700; }
 .form-error { margin: 12px 16px 0; padding: 10px 12px; border-radius: 6px; background: var(--error-bg); color: var(--danger); font-weight: 600; font-size: 14px; }
 .notice { margin: 12px 16px 0; padding: 10px 12px; border-radius: 6px; background: var(--bg-sub); font-size: 14px; }
+
+/* ===== 投稿の画像（F-14） ===== */
+.composer-image { position: relative; margin-top: 8px; display: inline-block; max-width: 100%; }
+.composer-image img { display: block; max-width: 100%; max-height: 320px; border-radius: 16px; border: 1px solid var(--border); }
+.composer-image-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 20, 25, 0.75);
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.composer-image-remove:hover { background: rgba(39, 44, 48, 0.9); }
+.composer-error { margin-top: 8px; color: var(--danger); font-size: 14px; font-weight: 600; }
+.composer-attach {
+  margin-right: auto;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.composer-attach:hover { background: var(--bg-sub); }
+.composer-attach:focus-within { outline: 2px solid var(--accent); }
+.composer-attach.disabled { opacity: 0.5; cursor: not-allowed; }
+.composer-attach input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* 一覧の画像。縦長の写真で一覧が長くなりすぎないよう、高さは抑えて切り抜く(押すと全体を見られる) */
+.post-image {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--bg-sub);
+  cursor: zoom-in;
+}
+.post-image img { display: block; width: 100%; height: auto; max-height: 510px; object-fit: cover; }
+
+/* 画像を大きく見る */
+.image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.9);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  cursor: zoom-out;
+}
+.image-viewer img { max-width: 100%; max-height: calc(100vh - 48px); object-fit: contain; cursor: default; }
+.image-viewer-close {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(39, 44, 48, 0.75);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+/* ===== 新着のお知らせ ===== */
+/* 一覧の上(タブの下)に浮かせる。高さを取らないので、出たり消えたりしても一覧はずれない */
+.new-posts-anchor { position: sticky; top: 110px; z-index: 6; height: 0; display: flex; justify-content: center; }
+.new-posts-banner {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px 6px 12px;
+  border: none;
+  border-radius: 9999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  animation: new-posts-in 0.25s ease-out;
+}
+.new-posts-banner:hover { background: var(--accent-hover); }
+.new-posts-avatars { display: inline-flex; }
+.new-posts-avatars .avatar { width: 24px; height: 24px; font-size: 12px; border: 2px solid var(--accent); }
+.new-posts-avatars .avatar + .avatar { margin-left: -8px; }
+@keyframes new-posts-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* お知らせから読み込んだ投稿に、少しの間だけ色を付ける */
+.post.new { animation: new-post-highlight 3s ease-out; }
+@keyframes new-post-highlight { from { background: rgba(29, 155, 240, 0.18); } to { background: transparent; } }
+
+@media (max-width: 600px) {
+  .new-posts-anchor { top: 96px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .new-posts-banner, .post.new { animation: none; }
+  .post.new { background: rgba(29, 155, 240, 0.12); }
+}

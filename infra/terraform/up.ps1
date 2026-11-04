@@ -15,6 +15,15 @@ Set-Location $PSScriptRoot
 aws sts get-caller-identity --output text *> $null
 if ($LASTEXITCODE -ne 0) { throw 'AWSにログインしていません。aws login を実行してから、もう一度実行してください。' }
 
+# 投稿の画像を置くバケット（storage/）。down.ps1 では消さないので、2回目からは何も変わらない
+if (-not (Test-Path storage/.terraform)) {
+    & $tf -chdir=storage init -input=false
+    if ($LASTEXITCODE -ne 0) { throw 'terraform init（storage）に失敗しました。' }
+}
+Write-Host '画像を置くバケットを確かめています（初回だけ作ります）'
+& $tf -chdir=storage apply -auto-approve -input=false
+if ($LASTEXITCODE -ne 0) { throw '画像を置くバケットを作れませんでした。もう一度 ./up.ps1 を実行してください。' }
+
 if (-not (Test-Path .terraform)) {
     & $tf init -input=false
     if ($LASTEXITCODE -ne 0) { throw 'terraform init に失敗しました。' }
