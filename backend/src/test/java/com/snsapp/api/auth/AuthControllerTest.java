@@ -174,6 +174,15 @@ class AuthControllerTest extends ApiTestSupport {
     }
 
     @Test
+    void loginRejectsOversizedInputWithoutCountingIt() throws Exception {
+        // メールアドレスは回数を数えるキーとしてメモリに残るので、巨大な値を受け付けてはいけない
+        mockMvc.perform(json(post("/api/auth/login"), Map.of("email", "a".repeat(256), "password", PASSWORD)))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(json(post("/api/auth/login"), Map.of("email", "a@example.com", "password", "a".repeat(73))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void changingThePasswordLogsOutOtherSessionsButKeepsTheCurrentOne() throws Exception {
         String username = newUsername();
         MockHttpSession pc = registerAndLogin(username);

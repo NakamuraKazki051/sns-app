@@ -47,6 +47,8 @@ export type Post = {
   repostedBy: PublicUser | null;
   /** 添付した画像(1枚まで)。無ければ null */
   image: PostImage | null;
+  /** サーバーから読んだのではなく、投稿した直後に画面で一覧へ足した行(画面だけの目印) */
+  addedHere?: boolean;
 };
 
 /** 投稿の画像。幅と高さで、読み込む前に枠の形を決める(読み込んだときに一覧がガタつかないように) */

@@ -67,18 +67,18 @@ function ProfileForm() {
     if (invalid || saving) return;
     setSaving(true);
     try {
-      let updated = await api<Me>("/api/me/profile", {
+      // 保存できた分はすぐ画面に反映する(このあとアイコンだけ失敗しても、表示名は保存済み)
+      updateMe(await api<Me>("/api/me/profile", {
         method: "PATCH",
         body: { displayName: displayName.trim(), bio: bio.trim() },
-      });
+      }));
       if (icon instanceof File) {
         const form = new FormData();
         form.append("icon", icon);
-        updated = await api<Me>("/api/me/icon", { method: "PUT", form });
+        updateMe(await api<Me>("/api/me/icon", { method: "PUT", form }));
       } else if (icon === null) {
-        updated = await api<Me>("/api/me/icon", { method: "DELETE" });
+        updateMe(await api<Me>("/api/me/icon", { method: "DELETE" }));
       }
-      updateMe(updated);
       setIcon(undefined);
       showToast("プロフィールを保存しました");
     } catch (e) {

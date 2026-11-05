@@ -6,17 +6,24 @@ import type { NewPosts, Post } from "./types";
 export const POLL_INTERVAL_MS = 30_000;
 
 /**
- * 一覧の中で一番新しい投稿の ID(リポストの行は元の投稿が古いことがあるので除く)。
+ * 新着を数える基準の ID。サーバーから読んだ投稿のうち、一番新しいもの。
+ * リポストの行は元の投稿が古いことがあるので、リポストしか無いときだけ使う(0 だと古い投稿まで新着に数えてしまう)。
+ * この画面で足した自分の投稿は除く(基準が進むと、それより前に出た他の人の投稿を見逃す)。
  * ID は桁が大きくなりうるので、数値ではなく BigInt で比べる。空なら "0"
  */
 export function latestPostId(posts: Post[]): string {
   let latest = 0n;
+  let latestRepost = 0n;
   for (const post of posts) {
-    if (post.repostedBy) continue;
+    if (post.addedHere) continue;
     const id = BigInt(post.id);
-    if (id > latest) latest = id;
+    if (post.repostedBy) {
+      if (id > latestRepost) latestRepost = id;
+    } else if (id > latest) {
+      latest = id;
+    }
   }
-  return latest.toString();
+  return (latest > 0n ? latest : latestRepost).toString();
 }
 
 /** a の方が新しい投稿の ID か */
@@ -28,7 +35,7 @@ export function isNewerId(a: string, b: string): boolean {
  * 今見ている一覧より新しい、他の人の投稿があるかを30秒ごとに確かめる(新着のお知らせ用)。
  * 自動で一覧に足すと読んでいる途中で投稿がずれるので、数だけ知らせて、読み込むかは本人が決める。
  * タブが裏にあるときは聞きに行かず、表に戻ったときにすぐ確かめる。
- * after(一覧の先頭の ID)が変わったら(読み直した、自分で投稿した)、お知らせを消して数え直す
+ * after(基準の ID)が変わったら(読み直したなど)、お知らせを消して数え直す
  */
 export function useNewPosts(path: string, after: string | null) {
   const [newPosts, setNewPosts] = useState<NewPosts | null>(null);

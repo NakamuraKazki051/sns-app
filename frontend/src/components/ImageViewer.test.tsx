@@ -27,4 +27,11 @@ describe("ImageViewer", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(opener);
   });
+
+  it("開いている間は Tab で後ろの画面へ移らない", async () => {
+    render(<Page />);
+    await userEvent.click(screen.getByRole("button", { name: "開く" }));
+    await userEvent.tab();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "閉じる" }));
+  });
 });

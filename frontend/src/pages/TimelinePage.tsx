@@ -46,7 +46,7 @@ export function TimelinePage() {
         post = await api<Post>("/api/posts", { method: "POST", body: { body: text } });
       }
       // 自分の投稿はどちらのタブにも出るので、一覧の先頭に足す
-      paged.setItems((list) => [post, ...list]);
+      paged.setItems((list) => [{ ...post, addedHere: true }, ...list]);
       showToast("投稿しました");
     } catch (e) {
       showError(errorMessage(e));
