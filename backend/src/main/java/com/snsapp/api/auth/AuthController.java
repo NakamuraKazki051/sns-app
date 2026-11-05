@@ -3,6 +3,7 @@ package com.snsapp.api.auth;
 import com.snsapp.api.auth.AuthDtos.LoginRequest;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
+import com.snsapp.api.common.ClientIp;
 import com.snsapp.api.common.OpenApiConfig;
 import com.snsapp.api.common.PublicApi;
 import com.snsapp.api.common.RateLimiter;
@@ -15,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,30 +41,42 @@ public class AuthController {
     public static final int LOGIN_ATTEMPTS = 10;
     public static final Duration LOGIN_WINDOW = Duration.ofMinutes(5);
 
+    // アカウントの大量作成の対策。1つの IP から1時間に登録できる回数(AWS は5回。ローカルと E2E テストは実質なし)
+    private static final Duration REGISTER_WINDOW = Duration.ofHours(1);
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUser currentUser;
     private final RateLimiter rateLimiter;
+    private final ClientIp clientIp;
+    private final int registerPerHour;
 
     // 未登録のメールアドレスでも照合に使うダミーのハッシュ
     private final String dummyPasswordHash;
 
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, CurrentUser currentUser,
-                          RateLimiter rateLimiter) {
+                          RateLimiter rateLimiter, ClientIp clientIp,
+                          @Value("${app.register.per-hour}") int registerPerHour) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentUser = currentUser;
         this.rateLimiter = rateLimiter;
+        this.clientIp = clientIp;
+        this.registerPerHour = registerPerHour;
         this.dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
     @Operation(operationId = "register", summary = "ユーザー登録",
-            description = "登録だけではログインしない。続けてログインの API を呼ぶ")
+            description = "登録だけではログインしない。続けてログインの API を呼ぶ。1つの IP から1時間に5回まで(入力の誤りは数えない)")
     @PublicApi
-    @ApiErrors({400, 409})
+    @ApiErrors({400, 409, 429})
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse register(@Valid @RequestBody RegisterRequest request) {
+    public UserResponse register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
+        // 使用済みのメールアドレスも数える(数えないと、登録の有無を際限なく調べられる)
+        if (!rateLimiter.tryAcquire("register:" + clientIp.of(httpRequest), registerPerHour, REGISTER_WINDOW)) {
+            throw ApiException.tooManyRequests("登録の回数が多すぎます。1時間ほど待ってからもう一度お試しください");
+        }
         String email = request.email().trim().toLowerCase();
         if (userRepository.existsByEmail(email)) {
             throw ApiException.conflict("このメールアドレスは既に登録されています: " + email);

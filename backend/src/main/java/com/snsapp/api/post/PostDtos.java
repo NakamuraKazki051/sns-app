@@ -29,8 +29,8 @@ public class PostDtos {
     public record PostResponse(@Schema(description = "投稿 ID(文字列)") String id, String body, Instant createdAt,
                                PublicUser user, long likesCount, long repliesCount, boolean likedByMe,
                                long repostsCount, boolean repostedByMe,
-                               @Schema(description = "リポストした人。リポストとして出すときだけ入り、それ以外は null") PublicUser repostedBy,
-                               @Schema(description = "画像。無ければ null") ImageResponse image) {
+                               @Schema(types = {"object", "null"}, description = "リポストした人。リポストとして出すときだけ入り、それ以外は null") PublicUser repostedBy,
+                               @Schema(types = {"object", "null"}, description = "画像。無ければ null") ImageResponse image) {
     }
 
     /** 投稿の画像(無ければ PostResponse.image が null)。幅と高さで、読み込む前に枠の形を決められる */
@@ -56,7 +56,7 @@ public class PostDtos {
      * nextCursor は次のページを読むときに before に渡す値(続きがなければ null)
      */
     public record PageResponse(List<PostResponse> posts, boolean hasMore,
-                               @Schema(description = "次のページを読むときに before に渡す値。続きが無ければ null") String nextCursor) {
+                               @Schema(types = {"string", "null"}, description = "次のページを読むときに before に渡す値。続きが無ければ null") String nextCursor) {
     }
 
     /** いいね・取り消しの結果 */

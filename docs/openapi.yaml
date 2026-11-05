@@ -98,7 +98,7 @@ paths:
       - 認証
   /api/auth/register:
     post:
-      description: 登録だけではログインしない。続けてログインの API を呼ぶ
+      description: 登録だけではログインしない。続けてログインの API を呼ぶ。1つの IP から1時間に5回まで(入力の誤りは数えない)
       operationId: register
       requestBody:
         content:
@@ -125,6 +125,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: メールアドレスかユーザー名が、既に使われている
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
       security: []
       summary: ユーザー登録
       tags:
@@ -1250,7 +1256,9 @@ components:
         hasMore:
           type: boolean
         nextCursor:
-          type: string
+          type:
+          - string
+          - "null"
           description: 次のページを読むときに before に渡す値。続きが無ければ null
         posts:
           type: array
@@ -1268,7 +1276,9 @@ components:
           type: string
           description: 投稿 ID(文字列)
         image:
-          $ref: "#/components/schemas/ImageResponse"
+          anyOf:
+          - $ref: "#/components/schemas/ImageResponse"
+          - type: "null"
           description: 画像。無ければ null
         likedByMe:
           type: boolean
@@ -1279,7 +1289,9 @@ components:
           type: integer
           format: int64
         repostedBy:
-          $ref: "#/components/schemas/PublicUser"
+          anyOf:
+          - $ref: "#/components/schemas/PublicUser"
+          - type: "null"
           description: リポストした人。リポストとして出すときだけ入り、それ以外は null
         repostedByMe:
           type: boolean
@@ -1292,7 +1304,10 @@ components:
       type: object
       properties:
         bio:
-          type: string
+          type:
+          - string
+          - "null"
+          description: 自己紹介。無ければ null
         createdAt:
           type: string
           format: date-time
@@ -1307,8 +1322,11 @@ components:
           type: integer
           format: int64
         iconUpdatedAt:
-          type: string
+          type:
+          - string
+          - "null"
           format: date-time
+          description: アイコンを変えた時刻。アイコンが無ければ null
         id:
           type: string
         postsCount:
@@ -1332,7 +1350,9 @@ components:
         displayName:
           type: string
         iconUpdatedAt:
-          type: string
+          type:
+          - string
+          - "null"
           format: date-time
           description: アイコンを変えた時刻。アイコンが無ければ null
         id:
@@ -1418,7 +1438,9 @@ components:
       type: object
       properties:
         nextCursor:
-          type: string
+          type:
+          - string
+          - "null"
           description: 次のページを読むときに渡す値。続きが無ければ null
         users:
           type: array
@@ -1428,7 +1450,9 @@ components:
       type: object
       properties:
         bio:
-          type: string
+          type:
+          - string
+          - "null"
           description: 自己紹介。無ければ null
         createdAt:
           type: string
@@ -1438,7 +1462,9 @@ components:
         email:
           type: string
         iconUpdatedAt:
-          type: string
+          type:
+          - string
+          - "null"
           format: date-time
           description: アイコンを変えた時刻。アイコンが無ければ null
         id:
@@ -1449,12 +1475,18 @@ components:
       type: object
       properties:
         bio:
-          type: string
+          type:
+          - string
+          - "null"
+          description: 自己紹介。無ければ null
         displayName:
           type: string
         iconUpdatedAt:
-          type: string
+          type:
+          - string
+          - "null"
           format: date-time
+          description: アイコンを変えた時刻。アイコンが無ければ null
         id:
           type: string
         username:

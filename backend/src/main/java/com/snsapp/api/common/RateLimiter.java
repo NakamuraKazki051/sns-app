@@ -18,8 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RateLimiter {
 
-    // 使っている時間枠(最長5分)より十分長くしておく。これより前の記録はどの制限にも効かない
-    private static final Duration RETENTION = Duration.ofHours(1);
+    // 使っている時間枠(最長1時間)より長くしておく。これより前の記録はどの制限にも効かない
+    private static final Duration RETENTION = Duration.ofHours(2);
     private static final Duration SWEEP_INTERVAL = Duration.ofMinutes(10);
 
     private final Map<String, Deque<Instant>> attempts = new ConcurrentHashMap<>();

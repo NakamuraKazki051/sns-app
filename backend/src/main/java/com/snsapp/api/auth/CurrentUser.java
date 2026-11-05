@@ -15,6 +15,8 @@ public class CurrentUser {
     public static final String SESSION_KEY = "userId";
     // ログインした時点のパスワードハッシュ。パスワードが変わると一致しなくなり、他の端末のセッションが切れる
     static final String CREDENTIAL_KEY = "credential";
+    // 1つのリクエストの中で確かめ終わった人。LoginInterceptor とコントローラーの2回 DB を読まないように
+    private static final String VERIFIED_KEY = CurrentUser.class.getName() + ".verified";
 
     private final UserRepository userRepository;
 
@@ -23,6 +25,9 @@ public class CurrentUser {
     }
 
     public String require(HttpServletRequest request) {
+        if (request.getAttribute(VERIFIED_KEY) instanceof String verified) {
+            return verified;
+        }
         HttpSession session = request.getSession(false);
         String userId = session != null ? (String) session.getAttribute(SESSION_KEY) : null;
         if (userId == null) {
@@ -36,6 +41,7 @@ public class CurrentUser {
             session.invalidate();
             throw ApiException.unauthorized("ログインの有効期限が切れました(パスワードが変更された可能性があります)。もう一度ログインしてください");
         }
+        request.setAttribute(VERIFIED_KEY, userId);
         return userId;
     }
 

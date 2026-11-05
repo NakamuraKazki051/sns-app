@@ -28,7 +28,8 @@ systemctl enable --now docker
 
 # Amazon Linux 2023 の docker パッケージには compose が入っていないので追加する
 mkdir -p /usr/local/lib/docker/cli-plugins
-retry curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
+# 版を固定する（latest だと、将来の更新で環境作りが突然失敗することがある）
+retry curl -fsSL "https://github.com/docker/compose/releases/download/v5.7.0/docker-compose-linux-$(uname -m)" \
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
@@ -44,6 +45,7 @@ DB_PASSWORD=$(retry aws ssm get-parameter --region "${region}" --name "${db_pass
 umask 077
 cat > .env <<EOF
 DB_PASSWORD=$DB_PASSWORD
+ORIGIN_SECRET=${origin_secret}
 EOF
 umask 022
 unset DB_PASSWORD
@@ -68,6 +70,10 @@ services:
       APP_CORS_ALLOWED_ORIGINS: ${app_origin}
       # API 仕様書（Swagger UI）はローカルだけで使う。ここでは開けないようにする
       API_DOCS_ENABLED: "false"
+      # 自分の CloudFront を通ったリクエストだけを受け付ける
+      APP_ORIGIN_SECRET: $${ORIGIN_SECRET}
+      # 1つの IP から1時間に登録できる回数
+      REGISTER_PER_HOUR: "5"
     volumes:
       - ./app.jar:/app/app.jar:ro
     command: ["java", "-Xmx384m", "-Xss512k", "-XX:MaxMetaspaceSize=128m", "-jar", "/app/app.jar"]

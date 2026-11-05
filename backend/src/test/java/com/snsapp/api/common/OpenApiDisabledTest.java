@@ -20,7 +20,8 @@ class OpenApiDisabledTest {
     private MockMvc mockMvc;
 
     @ParameterizedTest
-    @ValueSource(strings = {"/v3/api-docs", "/v3/api-docs.yaml", "/swagger-ui.html", "/swagger-ui/index.html"})
+    @ValueSource(strings = {"/v3/api-docs", "/v3/api-docs.yaml", "/swagger-ui.html", "/swagger-ui/index.html",
+            "/webjars/swagger-ui/index.html"})
     void docsAreNotServed(String url) throws Exception {
         mockMvc.perform(get(url)).andExpect(status().isNotFound());
     }

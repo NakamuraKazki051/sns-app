@@ -1,8 +1,10 @@
 package com.snsapp.api.common;
 
+import com.snsapp.api.auth.LoginInterceptor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.ArrayList;
@@ -17,6 +19,17 @@ public class WebConfig implements WebMvcConfigurer {
     // 例: APP_CORS_ALLOWED_ORIGINS=https://d111111abcdef8.cloudfront.net
     @Value("${app.cors.allowed-origins:}")
     private String extraAllowedOrigins;
+
+    private final LoginInterceptor loginInterceptor;
+
+    public WebConfig(LoginInterceptor loginInterceptor) {
+        this.loginInterceptor = loginInterceptor;
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(loginInterceptor).addPathPatterns("/api/**");
+    }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {

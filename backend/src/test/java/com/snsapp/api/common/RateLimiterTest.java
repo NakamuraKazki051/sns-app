@@ -41,7 +41,7 @@ class RateLimiterTest {
         assertEquals(100, limiter.trackedKeys());
 
         // 二度と来ないキーも、時間がたてば誰かの操作のついでに消える(メモリに残り続けない)
-        limiter.setClock(at(START.plus(Duration.ofHours(2))));
+        limiter.setClock(at(START.plus(Duration.ofHours(3))));
         limiter.tryAcquire("other", 10, WINDOW);
         assertEquals(1, limiter.trackedKeys());
     }

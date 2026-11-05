@@ -28,12 +28,20 @@ spring:
 
 # 投稿の画像の置き場所。IMAGES_S3_BUCKET があれば S3(AWS)、無ければ dir のフォルダ(ローカル)
 app:
+  # AWS だけで使う。CloudFront が付ける秘密のヘッダーの値(OriginSecretFilter)
+  origin-secret: ${APP_ORIGIN_SECRET:}
+  # 1つの IP から1時間に登録できる回数。ローカルと E2E テストでは止めない(AWS は5)
+  register:
+    per-hour: ${REGISTER_PER_HOUR:100000}
   images:
     s3-bucket: ${IMAGES_S3_BUCKET:}
     dir: ${IMAGES_DIR:data/post-images}
 
 server:
   port: 8080
+  # 画面のファイルや JSON を圧縮して送る
+  compression:
+    enabled: true
   tomcat:
     # 大きすぎるファイルを断るとき、これより大きいと途中で接続を切る。ブラウザが 413 を受け取れるよう、既定の2MBより広げる
     max-swallow-size: 32MB

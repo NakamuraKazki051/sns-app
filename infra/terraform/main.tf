@@ -102,6 +102,7 @@ resource "aws_instance" "app" {
     db_password_parameter = aws_ssm_parameter.db_password.name
     images_bucket         = data.aws_s3_bucket.images.bucket
     app_origin            = "https://${aws_cloudfront_distribution.app.domain_name}"
+    origin_secret         = random_password.origin_secret.result
   })
 
   # CPUを使いすぎたときに追加料金が出る「unlimited」モードにしない
