@@ -47,8 +47,8 @@ public class UserDtos {
 
     /** ログインしている本人に返す。メールアドレスを含む */
     public record UserResponse(String id, String email, String username, String displayName,
-                               @Schema(description = "アイコンを変えた時刻。アイコンが無ければ null") Instant iconUpdatedAt,
-                               @Schema(description = "自己紹介。無ければ null") String bio, Instant createdAt) {
+                               @Schema(types = {"string", "null"}, format = "date-time", description = "アイコンを変えた時刻。アイコンが無ければ null") Instant iconUpdatedAt,
+                               @Schema(types = {"string", "null"}, description = "自己紹介。無ければ null") String bio, Instant createdAt) {
         public static UserResponse from(User user) {
             return new UserResponse(user.getId(), user.getEmail(), user.getUsername(), user.getDisplayName(),
                     user.getIconUpdatedAt(), user.getBio(), user.getCreatedAt());
@@ -57,14 +57,16 @@ public class UserDtos {
 
     /** 他のユーザーにも見せる部分(投稿の投稿者など) */
     public record PublicUser(String id, String username, String displayName,
-                             @Schema(description = "アイコンを変えた時刻。アイコンが無ければ null") Instant iconUpdatedAt) {
+                             @Schema(types = {"string", "null"}, format = "date-time", description = "アイコンを変えた時刻。アイコンが無ければ null") Instant iconUpdatedAt) {
         public static PublicUser from(User user) {
             return new PublicUser(user.getId(), user.getUsername(), user.getDisplayName(), user.getIconUpdatedAt());
         }
     }
 
     /** ユーザー検索・フォロー一覧の1人分 */
-    public record UserSummary(String id, String username, String displayName, Instant iconUpdatedAt, String bio) {
+    public record UserSummary(String id, String username, String displayName,
+                              @Schema(types = {"string", "null"}, format = "date-time", description = "アイコンを変えた時刻。アイコンが無ければ null") Instant iconUpdatedAt,
+                              @Schema(types = {"string", "null"}, description = "自己紹介。無ければ null") String bio) {
         public static UserSummary from(User user) {
             return new UserSummary(user.getId(), user.getUsername(), user.getDisplayName(), user.getIconUpdatedAt(),
                     user.getBio());
@@ -73,11 +75,13 @@ public class UserDtos {
 
     /** ユーザーの一覧1ページ分。nextCursor を次のリクエストに渡すと続きを読める(続きが無ければ null) */
     public record UserPage(List<UserSummary> users,
-                           @Schema(description = "次のページを読むときに渡す値。続きが無ければ null") String nextCursor) {
+                           @Schema(types = {"string", "null"}, description = "次のページを読むときに渡す値。続きが無ければ null") String nextCursor) {
     }
 
     /** ユーザーページ */
-    public record ProfileResponse(String id, String username, String displayName, Instant iconUpdatedAt, String bio,
+    public record ProfileResponse(String id, String username, String displayName,
+                                  @Schema(types = {"string", "null"}, format = "date-time", description = "アイコンを変えた時刻。アイコンが無ければ null") Instant iconUpdatedAt,
+                                  @Schema(types = {"string", "null"}, description = "自己紹介。無ければ null") String bio,
                                   long postsCount, long followingCount, long followersCount, boolean followedByMe,
                                   Instant createdAt) {
     }

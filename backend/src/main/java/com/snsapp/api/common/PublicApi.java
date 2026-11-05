@@ -5,7 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** API 仕様書で「ログインが要らない」とする API。ログインの確認はコードの中でしているので、ライブラリには読み取れない */
+/** ログインが要らない API。これが無い API は LoginInterceptor がログインを確かめ、API 仕様書にもそう載る */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface PublicApi {

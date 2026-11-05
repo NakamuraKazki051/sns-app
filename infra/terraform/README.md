@@ -10,7 +10,7 @@ AWS の無料枠の範囲で、RaiseLine を動かす EC2 を1台と、RDS（MyS
 | RDS | MySQL 8.4、`db.t4g.micro`（無料枠の対象）、シングルAZ、ストレージ20GB（暗号化）、自動バックアップ1日分 |
 | CloudFront | ブラウザとの間を HTTPS にする。証明書は CloudFront の標準のもの（`xxxx.cloudfront.net`）で、独自ドメインは要らない。キャッシュはしない |
 | Elastic IP | 固定のIPアドレス。サーバーを止めて起動し直してもIPが変わらない |
-| セキュリティグループ（EC2） | 80番を **CloudFront からだけ** 開ける（AWS 管理のプレフィックスリスト）。`http://<IP>/` は直接開けない。SSH（22番）は開けない |
+| セキュリティグループ（EC2） | 80番を **CloudFront からだけ** 開ける（AWS 管理のプレフィックスリスト）。`http://<IP>/` は直接開けない。SSH（22番）は開けない。これは CloudFront 全体に開くので、自分の CloudFront かどうかはアプリが秘密のヘッダーで確かめる |
 | セキュリティグループ（RDS） | 3306番を **アプリのEC2からだけ** 許可する。RDSはインターネットから接続できない（`publicly_accessible = false`） |
 | Parameter Store | DBのパスワード（SecureString。標準パラメータなので無料） |
 | S3バケット | デプロイするファイル（`app.jar`）の受け渡し場所。非公開・暗号化。環境と一緒に消える |
@@ -32,6 +32,9 @@ HTTPS で守られるのは **ブラウザ〜CloudFront** の間です。CloudFr
 - `SESSION_COOKIE_SECURE=true`：ログインの Cookie に `Secure` を付ける
 - `APP_CORS_ALLOWED_ORIGINS=https://<CloudFront のドメイン>`：アプリには `http` で届くので、ブラウザの `Origin: https://…` が別のサイトに見える。これが無いと POST が 403 になる
 
+- `APP_ORIGIN_SECRET`：CloudFront が付ける秘密のヘッダー（`X-Origin-Verify`）の値。無いリクエストは 403。他の人の CloudFront からは届かない。環境を作り直すたびに変わる
+- `REGISTER_PER_HOUR=5`：1つの IP から1時間に登録できる回数
+
 API 仕様書（Swagger UI）はローカルだけで使うので、AWS では `API_DOCS_ENABLED=false` で切っています（`/swagger-ui.html` と `/v3/api-docs` は 404）。
 
 テーブルは、アプリの起動時に Flyway が作ります（`backend/src/main/resources/db/migration`）。空の DB でも、スナップショットから戻した DB でも、まだ流していない SQL だけを流します。
@@ -43,7 +46,7 @@ DBのパスワードは、`terraform apply` の間だけ作られ、RDSと Param
 - 2GBのスワップを作る（メモリ1GBで Spring Boot を動かすため）
 - Docker と Docker Compose を入れ、Java 25 のイメージを取っておく
 - Parameter Store からDBのパスワードを読み、`/opt/sns-app/.env`（rootだけが読める）に保存する
-- `/opt/sns-app/docker-compose.yml` を置く
+- `/opt/sns-app/docker-compose.yml` を置く（Docker Compose の版は固定している）
 - 終わったら `/opt/sns-app/.ready` を作る（`deploy.ps1` はこれを待つ）
 
 ## 無料枠に収めるための工夫と、注意点
@@ -125,4 +128,4 @@ aws rds describe-db-snapshots --region $r --snapshot-type manual --query "DBSnap
 
 ## state について
 
-`terraform.tfstate` と `storage/terraform.tfstate` には、作ったリソースの情報が入っています。このPCにだけ保存していて、Gitには入れません（`.gitignore` 済み）。消すと Terraform がリソースを管理できなくなるので、消さないでください。特に `storage/` の state は `down.ps1` のあとも画像のバケットを指しています。消すと、次の `up.ps1` がバケットを作ろうとして失敗します。
+`terraform.tfstate` と `storage/terraform.tfstate` には、作ったリソースの情報が入っています。このPCにだけ保存していて、Gitには入れません（`.gitignore` 済み）。消すと Terraform がリソースを管理できなくなるので、消さないでください。`terraform.tfstate` には、秘密のヘッダーの値も入っています（CloudFront の設定に必要なため）。DB のパスワードは入っていません。特に `storage/` の state は `down.ps1` のあとも画像のバケットを指しています。消すと、次の `up.ps1` がバケットを作ろうとして失敗します。

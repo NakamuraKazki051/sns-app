@@ -78,6 +78,7 @@ flowchart TB
 
 | 対策 | 内容 | 場所 |
 | --- | --- | --- |
+| アカウントの大量作成 | 新規登録は1つの IP から1時間に5回まで（AWS）。超えたら 429。IP は CloudFront が足した `X-Forwarded-For` の最後の値で見る（前の部分は利用者が書き換えられる）。IP を変えられる相手は止められない | `AuthController`、`ClientIp` |
 | パスワードの総当たり | 同じメールアドレスへのログインは5分間に10回まで。超えたら 429。IP ではなくメールアドレスで数える（同じ回線の人を巻き込まないため） | `AuthController`、`RateLimiter` |
 | 登録有無の推測 | 未登録のメールアドレスでもダミーのハッシュで BCrypt の照合を1回行い、応答時間をそろえる。エラー文も「メールアドレスまたはパスワードが正しくありません」で共通 | `AuthController.login` |
 | セッション固定攻撃 | ログイン成功時にセッション ID を作り直す（`changeSessionId`） | `AuthController.login` |

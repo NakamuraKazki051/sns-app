@@ -8,6 +8,13 @@ locals {
   response_headers_policy_default = "67f7725c-6f97-4210-82d7-5512b31e9d03"
 }
 
+# 自分の CloudFront を通ったことの証明。80番は他人の CloudFront からも届くので、アプリがこの値を確かめる（OriginSecretFilter）
+# CloudFront の設定に必要なので state に残る（環境を作り直すたびに変わる）
+resource "random_password" "origin_secret" {
+  length  = 40
+  special = false
+}
+
 resource "aws_cloudfront_distribution" "app" {
   enabled         = true
   comment         = var.project
@@ -19,6 +26,11 @@ resource "aws_cloudfront_distribution" "app" {
     origin_id = "app"
     # CloudFront の接続先に IP は指定できないので、Elastic IP の DNS 名を使う
     domain_name = aws_eip.app.public_dns
+
+    custom_header {
+      name  = "X-Origin-Verify"
+      value = random_password.origin_secret.result
+    }
 
     custom_origin_config {
       http_port              = 80

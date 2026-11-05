@@ -18,5 +18,7 @@ spring:
 
 # 投稿の画像はテスト用のフォルダに置く(target の中なので mvn clean で消える)
 app:
+  register:
+    per-hour: 100000
   images:
     dir: target/test-post-images

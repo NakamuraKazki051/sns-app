@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.servers.Server;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.JsonSchema;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
@@ -22,6 +23,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * API 仕様書の全体の情報と、コードから読み取れないログインの要・不要とエラーを足す。
@@ -106,5 +108,29 @@ public class OpenApiConfig {
     OpenApiCustomizer addApiErrorSchema() {
         return openApi -> ModelConverters.getInstance().read(ApiError.class)
                 .forEach((name, schema) -> openApi.getComponents().addSchemas(name, schema));
+    }
+
+    /**
+     * null になる項目のうち、別の型を指すもの(@Schema(types = {"object", "null"}))を anyOf に書き換える。
+     * そのままだと「参照先の型であり、かつ null でもよい」となり、null が参照先の型に合わなくなる
+     */
+    @Bean
+    OpenApiCustomizer allowNullReferences() {
+        return openApi -> openApi.getComponents().getSchemas().values().forEach(model -> {
+            Map<String, Schema> properties = model.getProperties();
+            if (properties != null) {
+                properties.replaceAll((name, property) -> isNullableReference(property) ? anyOfNull(property) : property);
+            }
+        });
+    }
+
+    private static boolean isNullableReference(Schema<?> property) {
+        return property.get$ref() != null && property.getTypes() != null && property.getTypes().contains("null");
+    }
+
+    private static Schema<?> anyOfNull(Schema<?> property) {
+        return new JsonSchema().description(property.getDescription()).anyOf(List.of(
+                new JsonSchema().$ref(property.get$ref()),
+                new JsonSchema().types(Set.of("null"))));
     }
 }

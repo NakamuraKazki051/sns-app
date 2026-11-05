@@ -54,10 +54,11 @@ $commands = @(
     'for i in $(seq 1 60); do [ -f /opt/sns-app/.ready ] && break; sleep 10; done',
     '[ -f /opt/sns-app/.ready ] || { echo server-setup-not-finished; tail -50 /var/log/cloud-init-output.log; exit 1; }',
     'cd /opt/sns-app',
+    'set -a; . ./.env; set +a',
     "aws s3 cp --region $region --only-show-errors s3://$bucket/app.jar app.jar.new",
     'mv app.jar.new app.jar',
     'docker compose up -d --force-recreate app',
-    'for i in $(seq 1 60); do code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/api/auth/me || true); if [ "$code" = 401 ]; then echo app-ready; exit 0; fi; sleep 5; done',
+    'for i in $(seq 1 60); do code=$(curl -s -o /dev/null -w "%{http_code}" -H "X-Origin-Verify: $ORIGIN_SECRET" http://localhost/api/auth/me || true); if [ "$code" = 401 ]; then echo app-ready; exit 0; fi; sleep 5; done',
     'echo app-not-ready; docker compose logs --tail 80 app; exit 1'
 )
 $params = Join-Path ([IO.Path]::GetTempPath()) 'sns-app-deploy.json'
