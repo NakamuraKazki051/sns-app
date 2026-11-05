@@ -1,6 +1,8 @@
 spring:
   application:
     name: sns-api
+  config:
+    import: classpath:springdoc.yml
   # ローカルはリポジトリ直下の docker-compose.yml の MySQL(localhost:3307)。本番は環境変数で上書きする
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3307/snsapp_development}
@@ -32,6 +34,9 @@ app:
 
 server:
   port: 8080
+  tomcat:
+    # 大きすぎるファイルを断るとき、これより大きいと途中で接続を切る。ブラウザが 413 を受け取れるよう、既定の2MBより広げる
+    max-swallow-size: 32MB
   servlet:
     session:
       cookie:

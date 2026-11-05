@@ -81,7 +81,7 @@ sns-app/
 
 2026-11-05: フェーズ4の画像添付（F-14）を入れた（PR #9）。あわせて新着バナーと無限スクロールも入れた。AWS でも、S3 への保存・表示・削除、外から読めないこと、EC2 の権限が `post-images/` の中だけであることを確かめた。
 
-2026-11-05: AWS 環境を CloudFront で HTTPS にした（PR #12。ブラウザ〜CloudFront の間）。次の候補は Swagger の導入（[`swagger-plan.md`](./swagger-plan.md)）。
+2026-11-05: AWS 環境を CloudFront で HTTPS にした（PR #12。ブラウザ〜CloudFront の間）。Swagger で API 仕様書を自動で作るようにした（[`swagger-plan.md`](./swagger-plan.md)）。
 
 ## 検証方法
 

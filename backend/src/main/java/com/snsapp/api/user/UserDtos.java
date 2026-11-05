@@ -1,5 +1,6 @@
 package com.snsapp.api.user;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -28,8 +29,10 @@ public class UserDtos {
     }
 
     public record UpdateRequest(
+            @Schema(description = "新しいメールアドレス。変えないなら省く")
             @Email @Size(max = 255, message = "メールアドレスは255文字以内で入力してください") String email,
             @NotBlank String currentPassword,
+            @Schema(description = "新しいパスワード。変えないなら省く")
             @Size(min = 8, max = 72, message = "パスワードは8〜72文字で入力してください") String newPassword
     ) {
     }
@@ -38,13 +41,14 @@ public class UserDtos {
     public record ProfileUpdateRequest(
             @Size(max = User.DISPLAY_NAME_MAX, message = "表示名は50文字以内で入力してください")
             String displayName,
-            String bio
+            @Schema(description = "自己紹介。160字まで(絵文字も1字と数える)。空にすると消える") String bio
     ) {
     }
 
     /** ログインしている本人に返す。メールアドレスを含む */
-    public record UserResponse(String id, String email, String username, String displayName, Instant iconUpdatedAt,
-                               String bio, Instant createdAt) {
+    public record UserResponse(String id, String email, String username, String displayName,
+                               @Schema(description = "アイコンを変えた時刻。アイコンが無ければ null") Instant iconUpdatedAt,
+                               @Schema(description = "自己紹介。無ければ null") String bio, Instant createdAt) {
         public static UserResponse from(User user) {
             return new UserResponse(user.getId(), user.getEmail(), user.getUsername(), user.getDisplayName(),
                     user.getIconUpdatedAt(), user.getBio(), user.getCreatedAt());
@@ -52,7 +56,8 @@ public class UserDtos {
     }
 
     /** 他のユーザーにも見せる部分(投稿の投稿者など) */
-    public record PublicUser(String id, String username, String displayName, Instant iconUpdatedAt) {
+    public record PublicUser(String id, String username, String displayName,
+                             @Schema(description = "アイコンを変えた時刻。アイコンが無ければ null") Instant iconUpdatedAt) {
         public static PublicUser from(User user) {
             return new PublicUser(user.getId(), user.getUsername(), user.getDisplayName(), user.getIconUpdatedAt());
         }
@@ -67,7 +72,8 @@ public class UserDtos {
     }
 
     /** ユーザーの一覧1ページ分。nextCursor を次のリクエストに渡すと続きを読める(続きが無ければ null) */
-    public record UserPage(List<UserSummary> users, String nextCursor) {
+    public record UserPage(List<UserSummary> users,
+                           @Schema(description = "次のページを読むときに渡す値。続きが無ければ null") String nextCursor) {
     }
 
     /** ユーザーページ */

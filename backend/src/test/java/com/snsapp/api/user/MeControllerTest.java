@@ -4,6 +4,7 @@ import com.snsapp.api.ApiTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
@@ -27,6 +28,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -137,6 +139,16 @@ class MeControllerTest extends ApiTestSupport {
         mockMvc.perform(putIcon(session, "image/gif", "GIF89a....".getBytes(StandardCharsets.UTF_8)))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(putIcon(session, "image/png", new byte[0])).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void wrongRequestFormatsAreNotServerErrors() throws Exception {
+        MockHttpSession session = registerAndLogin();
+        mockMvc.perform(put("/api/me/icon").session(session).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnsupportedMediaType());
+        // multipart と名乗っているのに中身が読めない
+        mockMvc.perform(put("/api/me/icon").session(session).contentType(MediaType.MULTIPART_FORM_DATA))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

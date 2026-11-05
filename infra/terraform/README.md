@@ -32,6 +32,8 @@ HTTPS で守られるのは **ブラウザ〜CloudFront** の間です。CloudFr
 - `SESSION_COOKIE_SECURE=true`：ログインの Cookie に `Secure` を付ける
 - `APP_CORS_ALLOWED_ORIGINS=https://<CloudFront のドメイン>`：アプリには `http` で届くので、ブラウザの `Origin: https://…` が別のサイトに見える。これが無いと POST が 403 になる
 
+API 仕様書（Swagger UI）はローカルだけで使うので、AWS では `API_DOCS_ENABLED=false` で切っています（`/swagger-ui.html` と `/v3/api-docs` は 404）。
+
 テーブルは、アプリの起動時に Flyway が作ります（`backend/src/main/resources/db/migration`）。空の DB でも、スナップショットから戻した DB でも、まだ流していない SQL だけを流します。
 
 DBのパスワードは、`terraform apply` の間だけ作られ、RDSと Parameter Store に直接渡されます（ephemeral + write-only）。Terraform の state にもGitにも残りません。

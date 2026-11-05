@@ -1,0 +1,18 @@
+# API 仕様書(Swagger UI と /v3/api-docs)の設定。
+# テストは src/test/resources/application.yml が本番の application.yml を隠すので、両方から読めるよう別のファイルにしている
+springdoc:
+  # 画面を返す SpaController は載せない
+  paths-to-match: /api/**
+  # GlobalExceptionHandler のエラーを全 API に並べない。API ごとのエラーは @ApiErrors で書く
+  override-with-generic-response: false
+  # 応答の形式を */* ではなく JSON と書く
+  default-produces-media-type: application/json
+  # 毎回同じ順番で出す(docs/openapi.yaml と比べるテストのため)
+  writer-with-order-by-keys: true
+  # AWS では API_DOCS_ENABLED=false で切る(404 になる)
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:true}
+    # 「Try it out」を押さなくても、すぐ試せるようにする
+    try-it-out-enabled: true

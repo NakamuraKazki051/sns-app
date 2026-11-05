@@ -1,13 +1,18 @@
 package com.snsapp.api.reply;
 
 import com.snsapp.api.auth.CurrentUser;
+import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
+import com.snsapp.api.common.OpenApiConfig;
 import com.snsapp.api.common.RateLimiter;
 import com.snsapp.api.post.Post;
 import com.snsapp.api.post.PostController;
 import com.snsapp.api.post.PostDtos.CreateRequest;
 import com.snsapp.api.user.UserDtos.PublicUser;
 import com.snsapp.api.user.UserRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Limit;
 import org.springframework.http.HttpStatus;
@@ -26,6 +31,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api")
+@Tag(name = OpenApiConfig.TAG_REPLY)
 public class ReplyController {
 
     public static final int PAGE_SIZE = 20;
@@ -57,8 +63,13 @@ public class ReplyController {
     }
 
     /** 投稿へのリプライを古い順に。after(リプライ ID)を渡すと、それより新しいものから */
+    @Operation(operationId = "listReplies", summary = "投稿へのリプライ一覧",
+            description = "古い順に20件")
+    @ApiErrors({400, 404})
     @GetMapping("/posts/{postId}/replies")
-    public ReplyPage list(@PathVariable Long postId, @RequestParam(required = false) Long after,
+    public ReplyPage list(@PathVariable Long postId,
+                          @Parameter(description = "前のページの最後のリプライの ID。これより新しいものから読む")
+                          @RequestParam(required = false) Long after,
                           HttpServletRequest httpRequest) {
         currentUser.require(httpRequest);
         postController.findPost(postId);
@@ -70,6 +81,9 @@ public class ReplyController {
                 fetched.size() > PAGE_SIZE);
     }
 
+    @Operation(operationId = "createReply", summary = "リプライする",
+            description = "本文は140字まで(絵文字も1字と数える)。1人1分に10回まで")
+    @ApiErrors({400, 404, 429})
     @PostMapping("/posts/{postId}/replies")
     @ResponseStatus(HttpStatus.CREATED)
     public ReplyResponse create(@PathVariable Long postId, @RequestBody CreateRequest request,
@@ -87,6 +101,9 @@ public class ReplyController {
     }
 
     // 自分のリプライだけ消せる。他人のものは投稿と同じく 404
+    @Operation(operationId = "deleteReply", summary = "リプライを消す",
+            description = "自分のリプライだけ消せる")
+    @ApiErrors({400, 404})
     @DeleteMapping("/replies/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {

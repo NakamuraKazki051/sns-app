@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -41,6 +42,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
         return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
                 .body(ApiError.of(HttpStatus.CONTENT_TOO_LARGE.value(), "ファイルが大きすぎます(投稿の画像は5MB、アイコンは1MBまで)"));
+    }
+
+    // 大きすぎるファイル(上の MaxUploadSizeExceededException)以外の、multipart として読めないリクエスト
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiError> handleBrokenMultipart(MultipartException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiError.of(HttpStatus.BAD_REQUEST.value(), "リクエストの形式が不正です"));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

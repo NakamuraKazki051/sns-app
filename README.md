@@ -10,7 +10,8 @@
 - [`docs/spec.md`](./docs/spec.md)：仕様書（画面・API・データ・テスト）
 - [`docs/auth.md`](./docs/auth.md)：認証機能 定義書（バックエンド・フロントエンド）
 - [`docs/plan.md`](./docs/plan.md)：計画書（実装ステップと進み具合）
-- [`docs/swagger-plan.md`](./docs/swagger-plan.md)：Swagger（OpenAPI）で API 仕様書を自動生成する計画書
+- [`docs/openapi.yaml`](./docs/openapi.yaml)：API 仕様書（コードから自動で作る。下の「API 仕様書」）
+- [`docs/swagger-plan.md`](./docs/swagger-plan.md)：Swagger（OpenAPI）で API 仕様書を自動生成した計画書
 
 ## 構成
 
@@ -56,6 +57,25 @@ cd backend; mvn package -DskipTests; cd ..
 ```
 
 終わったら `docker compose stop` で MySQL を止めます（データは残ります）。
+
+## API 仕様書
+
+API の仕様書は、コードから自動で作っています（[springdoc-openapi](https://springdoc.org/)）。
+
+- **ブラウザで読む・試す：** バックエンドを起動して http://localhost:8080/swagger-ui.html を開きます。「認証」のログインの API を試すと Cookie が付き、ログインが要る API も試せます
+- **ファイルで読む：** [`docs/openapi.yaml`](./docs/openapi.yaml)。起動しなくても読めます
+- **AWS：** 外には見せないので、開けません（404）
+
+API を変えたら、`docs/openapi.yaml` を更新します。忘れると `mvn test` が失敗します。
+
+```powershell
+cd backend
+mvn test -Dtest=OpenApiDocTest -Dopenapi.update=true
+```
+
+- 説明は、コントローラーの `@Operation` と DTO の `@Schema` に書きます
+- 返すエラーは `@ApiErrors({400, 404})` と書きます。ログインが要る API の 401 は自動で付きます
+- ログインが要らない API には `@PublicApi` を付けます
 
 ## AWS で動かす
 

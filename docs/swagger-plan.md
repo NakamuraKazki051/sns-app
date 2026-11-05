@@ -1,6 +1,14 @@
 # Swagger（OpenAPI）API 仕様書の自動生成 計画書
 
-2026-11-05 作成。まだ実装していない。
+2026-11-05 作成、同日に実装した。使い方は [`README.md`](../README.md) の「API 仕様書」。
+
+実装で計画と変わったところ:
+
+- API は 31個になった。`POST /api/posts` の2つ（JSON と画像付き）を、仕様書では1つの API の2つの形式としてまとめたため
+- `springdoc.yml` を別のファイルにした。テストは `src/test/resources/application.yml` が本番の設定を隠すので、両方から読めるようにした
+- エラーは `@ApiResponse` を並べず、`@ApiErrors` と `@PublicApi` を作った。ログインが要る API の 401 は自動で付く
+- `operationId` をすべて手で付けた。同じ名前のメソッド（`create`、`delete` など）は自動だと連番になり、順番で変わるため
+- ログインが要ると書いた API を、未ログインで全部呼んで 401 になることを確かめるテストを足した。ここで `PUT /api/me/icon` に multipart 以外を送ると 500 になる不具合が見つかり、直した
 
 ## 目的
 
