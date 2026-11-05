@@ -97,7 +97,7 @@ function ProfileForm() {
         <div className="icon-buttons">
           <label className="button">
             画像を選ぶ
-            <input type="file" accept="image/jpeg,image/png" hidden onChange={pickIcon} />
+            <input name="icon" type="file" accept="image/jpeg,image/png" hidden onChange={pickIcon} />
           </label>
           {hasIcon && (
             <button type="button" className="link-button" onClick={() => setIcon(null)}>
@@ -109,14 +109,14 @@ function ProfileForm() {
       </div>
       <label>
         表示名
-        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoComplete="nickname" />
+        <input name="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoComplete="off" />
         <small className={nameLength > DISPLAY_NAME_MAX ? "over" : undefined}>
           {nameLength} / {DISPLAY_NAME_MAX}
         </small>
       </label>
       <label>
         自己紹介
-        <textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} />
+        <textarea name="bio" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} />
         <small className={bioLength > BIO_MAX ? "over" : undefined}>
           {bioLength} / {BIO_MAX}
         </small>
@@ -160,11 +160,11 @@ function EmailForm() {
       <h3>メールアドレス</h3>
       <label>
         新しいメールアドレス
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+        <input name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
       </label>
       <label>
         今のパスワード
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+        <input name="currentPassword" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
       </label>
       <button type="submit" className="button primary" disabled={saving}>
         変更する
@@ -215,16 +215,16 @@ function PasswordForm() {
       <h3>パスワード</h3>
       <label>
         今のパスワード
-        <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
+        <input name="currentPassword" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
       </label>
       <label>
         新しいパスワード
-        <input type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
+        <input name="newPassword" type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
         <small>8〜72文字</small>
       </label>
       <label>
         新しいパスワード（確認）
-        <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+        <input name="confirmPassword" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
       </label>
       <button type="submit" className="button primary" disabled={saving}>
         変更する

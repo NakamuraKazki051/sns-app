@@ -95,7 +95,7 @@ export function LoginPage() {
             </label>
             <label>
               表示名
-              <input name="displayName" value={form.displayName} onChange={set("displayName")} autoComplete="nickname" />
+              <input name="displayName" value={form.displayName} onChange={set("displayName")} autoComplete="off" />
             </label>
           </>
         )}

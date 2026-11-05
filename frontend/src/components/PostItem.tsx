@@ -125,6 +125,7 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true, isNew
               src={post.image.url}
               width={post.image.width}
               height={post.image.height}
+              style={{ aspectRatio: `${post.image.width} / ${post.image.height}` }}
               alt={post.body === "" ? `${post.user.displayName}さんの画像` : ""}
               loading="lazy"
               decoding="async"

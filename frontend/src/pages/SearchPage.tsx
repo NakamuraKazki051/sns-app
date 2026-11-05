@@ -29,6 +29,7 @@ export function SearchPage() {
       <h2 className="screen-title">ユーザー検索</h2>
       <form className="card search-form" onSubmit={submit} role="search">
         <input
+          name="q"
           type="search"
           value={input}
           maxLength={QUERY_MAX}
