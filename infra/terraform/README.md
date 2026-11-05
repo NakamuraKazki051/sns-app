@@ -42,7 +42,7 @@ DBのパスワードは、`terraform apply` の間だけ作られ、RDSと Param
 
 - NATゲートウェイ・ロードバランサー・Secrets Manager など、有料になりやすい部品は使いません
 - RDSは無料枠の対象のサイズにし、Performance Insights と拡張モニタリングは使いません
-- **使うときだけ作り、使い終わったら消す運用です**（下の「使い方」）。消している間にかかるのは、DBのスナップショットの保存料金だけです（ほぼ0円）
+- **使うときだけ作り、使い終わったら消す運用です**（下の「使い方」）。消している間にかかるのは、DBのスナップショットと、投稿の画像（S3）の保存料金だけです（ほぼ0円）
 - `terraform destroy` を直接実行すると、スナップショットを取らずにRDSのデータが消えます。消すときは必ず `down.ps1` を使ってください
 - CPUクレジットを `standard` にしています。CPUを使い切っても遅くなるだけで、追加料金はかかりません
 - **パブリックIPv4アドレス（Elastic IP）は無料枠の対象外です**（月に約3.6ドル）。無料プランのクレジットから引かれます
@@ -62,7 +62,7 @@ cd infra/terraform
 
 | スクリプト | やること |
 |---|---|
-| `up.ps1` | 最新のDBスナップショットがあれば、そこから RDS を復元して環境を作る（なければ空のDB）。そのあと `deploy.ps1` を実行してURLを表示する。`-SkipDeploy` を付けると作るだけ |
+| `up.ps1` | 画像のバケットが無ければ作る（`storage/`）。最新のDBスナップショットがあれば、そこから RDS を復元して環境を作る（なければ空のDB）。そのあと `deploy.ps1` を実行してURLを表示する。`-SkipDeploy` を付けると作るだけ |
 | `deploy.ps1` | 画面（`npm run build`）と `app.jar`（`mvn package`）をビルドし、非公開のS3バケットに置く。EC2 が Session Manager 経由でそれを取り込み、アプリを起動し直す。ログインなしの `/api/auth/me` が 401 を返したら完了。`-SkipBuild` を付けるとビルドを省く |
 | `down.ps1` | RDSのスナップショットを取り、完成を待ってから `terraform destroy` で全部消す。スナップショットに失敗したら何も消さずに止まる。スナップショットは新しいものから2つだけ残す |
 
@@ -114,4 +114,4 @@ aws rds describe-db-snapshots --region $r --snapshot-type manual --query "DBSnap
 
 ## state について
 
-`terraform.tfstate` には、作ったリソースの情報が入っています。このPCにだけ保存していて、Gitには入れません（`.gitignore` 済み）。消すと Terraform がリソースを管理できなくなるので、消さないでください。
+`terraform.tfstate` と `storage/terraform.tfstate` には、作ったリソースの情報が入っています。このPCにだけ保存していて、Gitには入れません（`.gitignore` 済み）。消すと Terraform がリソースを管理できなくなるので、消さないでください。特に `storage/` の state は `down.ps1` のあとも画像のバケットを指しています。消すと、次の `up.ps1` がバケットを作ろうとして失敗します。

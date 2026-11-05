@@ -194,14 +194,16 @@ public class PostController {
         // 画像を先に置き、投稿を保存できなかったら画像を消す(画像の無い投稿が残らないように)
         String key = UUID.randomUUID().toString();
         imageStorage.put(key, data, contentType);
+        Post post;
         try {
-            Post post = postRepository.save(new Post(user, text,
+            post = postRepository.save(new Post(user, text,
                     new PostImage(key, contentType, size.width(), size.height())));
-            return postViews.one(post, userId);
         } catch (RuntimeException e) {
             deleteImageQuietly(key);
             throw e;
         }
+        // 保存できたあとは画像を消さない(応答を作るところで失敗しても、投稿は残っている)
+        return postViews.one(post, userId);
     }
 
     /** 投稿の画像。投稿の画像は後から変わらないので、ブラウザには長くキャッシュさせる */
