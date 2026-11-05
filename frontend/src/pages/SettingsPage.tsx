@@ -145,9 +145,16 @@ function EmailForm() {
     }
     setSaving(true);
     try {
-      updateMe(await api<Me>("/api/users/me", { method: "PUT", body: { email: email.trim(), currentPassword: password } }));
+      const requested = email.trim();
+      const updated = await api<Me>("/api/users/me", { method: "PUT", body: { email: requested, currentPassword: password } });
+      updateMe(updated);
       setPassword("");
-      showToast("メールアドレスを変更しました");
+      // 新しいアドレスの確認が要るときは、リンクを開くまで変わらない
+      showToast(
+        updated.email === requested.toLowerCase()
+          ? "メールアドレスを変更しました"
+          : `${requested} に確認メールを送りました。リンクを開くと変更されます`,
+      );
     } catch (e) {
       showError(errorMessage(e));
     } finally {

@@ -34,6 +34,8 @@ HTTPS で守られるのは **ブラウザ〜CloudFront** の間です。CloudFr
 
 - `APP_ORIGIN_SECRET`：CloudFront が付ける秘密のヘッダー（`X-Origin-Verify`）の値。無いリクエストは 403。他の人の CloudFront からは届かない。環境を作り直すたびに変わる
 - `REGISTER_PER_HOUR=5`：1つの IP から1時間に登録できる回数
+- `APP_PUBLIC_URL`：確認メールのリンクの先（CloudFront の URL）
+- `MAIL_USERNAME`・`MAIL_PASSWORD`：確認メールを送る Gmail（下の「確認メールの送信」）
 
 API 仕様書（Swagger UI）はローカルだけで使うので、AWS では `API_DOCS_ENABLED=false` で切っています（`/swagger-ui.html` と `/v3/api-docs` は 404）。
 
@@ -80,6 +82,22 @@ cd infra/terraform
 
 - **作り直すたびに URL（`xxxx.cloudfront.net`）が変わります。** `up.ps1` の最後に表示されるURLを使ってください
 - EC2 のサイズなどを変えたい場合は、`terraform.tfvars.example` を `terraform.tfvars` という名前でコピーして編集します
+
+## 確認メールの送信
+
+新規登録の確認メールは Gmail から送ります。最初に1回だけ、次の準備が要ります。
+
+1. Google アカウントで2段階認証を有効にし、アプリパスワードを作ります。
+2. Gmail のアドレスとアプリパスワードを Parameter Store に入れます（公開リポジトリと Terraform の state に載せないためです）。`down.ps1` では消えません。
+
+```powershell
+aws ssm put-parameter --region ap-northeast-1 --type SecureString --name /sns-app/mail/username --value 'Gmail のアドレス'
+aws ssm put-parameter --region ap-northeast-1 --type SecureString --name /sns-app/mail/password --value 'アプリパスワード'
+```
+
+- 値はサーバーを作るときに読みます。動いている環境に入れた場合は、`down.ps1` と `up.ps1` で作り直してください。
+- 未登録のままだと、メールは送られず、リンクはアプリのログに出るだけです（`up.ps1` が警告します）。
+- Gmail の送信数には1日の上限があります。受信者には送信元の Gmail アドレスが見えます。
 
 ## サーバーに入る
 

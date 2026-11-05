@@ -33,6 +33,15 @@ app:
   # 1つの IP から1時間に登録できる回数。ローカルと E2E テストでは止めない(AWS は5)
   register:
     per-hour: ${REGISTER_PER_HOUR:100000}
+  # 確認メールのリンクの先。AWS は CloudFront の URL
+  public-url: ${APP_PUBLIC_URL:http://localhost:5173}
+  # 登録やメールアドレスの変更で、メールの確認を求めるか(負荷試験だけ false)
+  email-verification:
+    required: ${EMAIL_VERIFICATION_REQUIRED:true}
+  # 確認メールを送る Gmail。username が空なら送らず、リンクをログに出す(ローカル)
+  mail:
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
   images:
     s3-bucket: ${IMAGES_S3_BUCKET:}
     dir: ${IMAGES_DIR:data/post-images}

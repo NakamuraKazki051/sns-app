@@ -39,6 +39,8 @@ try {
 
     Write-Host "== アプリを起動（$baseUrl）"
     $env:DB_URL = "jdbc:mysql://localhost:3307/$perfDb"
+    # 負荷試験のユーザーは登録してすぐログインするので、メールの確認を求めない
+    $env:EMAIL_VERIFICATION_REQUIRED = 'false'
     $log = Join-Path $PSScriptRoot 'app.log'
     # メモリの少ない PC 向けの設定
     $app = Start-Process $java -PassThru -NoNewWindow -RedirectStandardOutput $log -RedirectStandardError "$log.err" `
