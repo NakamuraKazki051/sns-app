@@ -16,6 +16,14 @@ describe("latestPostId", () => {
     expect(latestPostId([post("9"), post("50", BOB), post("12"), post("3")])).toBe("12");
   });
 
+  it("この画面で足した自分の投稿は基準にしない(その前に出た他の人の投稿を見逃さない)", () => {
+    expect(latestPostId([{ ...post("31"), addedHere: true }, post("20")])).toBe("20");
+  });
+
+  it("リポストの行しか無ければ、その中で一番大きい ID(0 にすると古い投稿まで新着に数えてしまう)", () => {
+    expect(latestPostId([post("50", BOB), post("12", BOB)])).toBe("50");
+  });
+
   it("空なら 0", () => {
     expect(latestPostId([])).toBe("0");
   });

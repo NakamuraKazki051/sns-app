@@ -18,7 +18,15 @@ export function ImageViewer({ src, alt, onClose }: Props) {
   }, []);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      } else if (e.key === "Tab") {
+        // 操作できるのは閉じるボタンだけ。後ろの画面へ移らないようにする
+        e.preventDefault();
+        closeRef.current?.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     // 開いている間は後ろの一覧がスクロールしないようにする
     const overflow = document.body.style.overflow;
