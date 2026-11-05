@@ -9,7 +9,7 @@
 | 項目 | 方式 |
 | --- | --- |
 | ログインの仕組み | サーバー側セッション（Tomcat の HttpSession）＋ Cookie。JWT は使わない |
-| Cookie | 名前 `SNS_SESSION`、`HttpOnly`、`SameSite=Lax`。AWS で HTTPS にするときは `Secure` も付ける |
+| Cookie | 名前 `SNS_SESSION`、`HttpOnly`、`SameSite=Lax`。AWS（HTTPS）では `Secure` も付ける（`SESSION_COOKIE_SECURE=true`） |
 | パスワードの保存 | BCrypt でハッシュ化（元のパスワードは保存しない） |
 | 画面と API | 同じオリジンで配信（開発中は Vite が `/api` を Spring Boot に中継、本番は Spring Boot が画面も配信）。CORS は使わない |
 | ログイン状態の保持期間 | 最後の操作から30分（Tomcat の既定）。過ぎると次の操作で 401 になり、ログイン画面に戻る |
@@ -82,7 +82,7 @@ flowchart TB
 | 登録有無の推測 | 未登録のメールアドレスでもダミーのハッシュで BCrypt の照合を1回行い、応答時間をそろえる。エラー文も「メールアドレスまたはパスワードが正しくありません」で共通 | `AuthController.login` |
 | セッション固定攻撃 | ログイン成功時にセッション ID を作り直す（`changeSessionId`） | `AuthController.login` |
 | XSS で Cookie を盗まれる | Cookie は `HttpOnly`（JavaScript から読めない）。画面は投稿を文字として出し、HTML として解釈しない | `application.yml`、React |
-| CSRF（他サイトから勝手に操作させる） | Cookie は `SameSite=Lax` なので、他のサイトからの POST・PUT・PATCH・DELETE には付かない。CORS も localhost と指定したオリジンだけ | `application.yml`、`WebConfig` |
+| CSRF（他サイトから勝手に操作させる） | Cookie は `SameSite=Lax` なので、他のサイトからの POST・PUT・PATCH・DELETE には付かない。CORS も localhost と指定したオリジン（AWS は CloudFront の URL）だけ | `application.yml`、`WebConfig` |
 | 同時登録 | 存在チェックと保存の間に同じメール・ユーザー名が入っても、DB の一意制約で弾いて 409 を返す | `AuthController.register` |
 | 他人のデータ | 他人の投稿・リプライの削除は 403 ではなく 404（存在を教えない） | `PostController`、`ReplyController` |
 

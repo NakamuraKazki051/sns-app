@@ -12,8 +12,9 @@ import java.util.List;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    // フロントエンドをAPIと別のポートで配信する環境（EC2など）のオリジン。カンマ区切りで完全一致のみ
-    // 例: APP_CORS_ALLOWED_ORIGINS=http://203.0.113.10
+    // ブラウザから見たオリジンがアプリから見たものと違う環境のオリジン。カンマ区切りで完全一致のみ
+    // AWS は CloudFront が https で受けてアプリへ http で渡すので、ここに入れないと POST が 403 になる
+    // 例: APP_CORS_ALLOWED_ORIGINS=https://d111111abcdef8.cloudfront.net
     @Value("${app.cors.allowed-origins:}")
     private String extraAllowedOrigins;
 

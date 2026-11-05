@@ -9,8 +9,8 @@ output "public_ip" {
 }
 
 output "app_url" {
-  description = "ブラウザで開くURL（80番）"
-  value       = "http://${aws_eip.app.public_ip}/"
+  description = "ブラウザで開くURL（CloudFront の https）"
+  value       = "https://${aws_cloudfront_distribution.app.domain_name}/"
 }
 
 output "db_endpoint" {

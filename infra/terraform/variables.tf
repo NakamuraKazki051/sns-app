@@ -27,12 +27,6 @@ variable "root_volume_size" {
   }
 }
 
-variable "allowed_http_cidrs" {
-  description = "アプリにアクセスを許可するIPの範囲。自分だけに絞るなら [\"<自分のIP>/32\"]"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
-}
-
 variable "db_instance_class" {
   description = "RDSのインスタンスクラス。無料枠の対象（db.t4g.micro / db.t3.micro）から選ぶ"
   type        = string
