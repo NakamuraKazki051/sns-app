@@ -10,6 +10,11 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
@@ -32,8 +37,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class MeControllerTest extends ApiTestSupport {
 
-    private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n', 1, 2, 3};
-    private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 4, 5, 6};
+    private static final byte[] PNG = image("png");
+    private static final byte[] JPEG = image("jpeg");
+
+    private static byte[] image(String format) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            ImageIO.write(new BufferedImage(4, 3, BufferedImage.TYPE_INT_RGB), format, out);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return out.toByteArray();
+    }
 
     /** multipart() は POST になるので、PUT に変える */
     private static MockMultipartHttpServletRequestBuilder putIcon(MockHttpSession session, String contentType,
@@ -122,6 +137,13 @@ class MeControllerTest extends ApiTestSupport {
         mockMvc.perform(putIcon(session, "image/gif", "GIF89a....".getBytes(StandardCharsets.UTF_8)))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(putIcon(session, "image/png", new byte[0])).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void brokenImagesAreRejected() throws Exception {
+        // 先頭だけ PNG に見せかけたファイル。保存すると、みんなの画面でアイコンが壊れて見える
+        byte[] fakePng = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n', 1, 2, 3};
+        mockMvc.perform(putIcon(registerAndLogin(), "image/png", fakePng)).andExpect(status().isBadRequest());
     }
 
     @Test

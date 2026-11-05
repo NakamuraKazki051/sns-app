@@ -96,6 +96,7 @@ export function Composer({ placeholder, submitLabel, allowImage = false, onSubmi
     <form className="card composer" onSubmit={submit}>
       <textarea
         ref={textareaRef}
+        name="body"
         rows={3}
         value={text}
         placeholder={placeholder}
@@ -132,6 +133,7 @@ export function Composer({ placeholder, submitLabel, allowImage = false, onSubmi
           <label className={attachDisabled ? "composer-attach disabled" : "composer-attach"}>
             <input
               ref={fileInput}
+              name="image"
               type="file"
               accept="image/jpeg,image/png"
               aria-label="画像を付ける"

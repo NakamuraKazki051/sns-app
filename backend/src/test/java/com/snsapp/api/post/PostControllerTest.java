@@ -110,6 +110,15 @@ class PostControllerTest extends ApiTestSupport {
     }
 
     @Test
+    void rejectedPostsDoNotUseUpTheLimit() throws Exception {
+        MockHttpSession session = registerAndLogin();
+        for (int i = 0; i <= PostController.POSTS_PER_WINDOW; i++) {
+            assertEquals(400, createPostResult(session, "   ").getResponse().getStatus());
+        }
+        createPost(session, "空ではない投稿");
+    }
+
+    @Test
     void moreThan10PostsAMinuteAreRefusedPerUser() throws Exception {
         MockHttpSession session = registerAndLogin();
         for (int i = 0; i < PostController.POSTS_PER_WINDOW; i++) {
