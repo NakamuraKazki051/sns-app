@@ -66,6 +66,8 @@ services:
       SESSION_COOKIE_SECURE: "true"
       # CloudFront からは http で届くので、ブラウザの Origin（https）が別のサイトに見える。同じサイトだと教える
       APP_CORS_ALLOWED_ORIGINS: ${app_origin}
+      # API 仕様書（Swagger UI）はローカルだけで使う。ここでは開けないようにする
+      API_DOCS_ENABLED: "false"
     volumes:
       - ./app.jar:/app/app.jar:ro
     command: ["java", "-Xmx384m", "-Xss512k", "-XX:MaxMetaspaceSize=128m", "-jar", "/app/app.jar"]

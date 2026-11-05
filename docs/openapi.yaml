@@ -1,0 +1,1467 @@
+openapi: 3.1.0
+info:
+  description: |
+    RaiseLine(旧Twitter風のテキストSNS)の API。
+
+    - **ログイン：** `POST /api/auth/login` が返す Cookie(`SNS_SESSION`)で判定する
+    - **エラー：** 本文は共通の `ApiError`。`message` は画面にそのまま出せる日本語
+    - **他のサイトからの呼び出し：** 許可していないオリジンからの POST などは 403
+    - **ページ送り：** 1ページ20件。応答の `nextCursor` を次のリクエストに渡す
+  title: RaiseLine API
+  version: 0.1.0
+servers:
+- url: /
+security:
+- session: []
+tags:
+- description: 登録・ログイン・ログアウト
+  name: 認証
+- description: 投稿・タイムライン・いいね
+  name: 投稿
+- description: 投稿へのリプライ
+  name: リプライ
+- description: 他の人の投稿のリポスト
+  name: リポスト
+- description: ユーザーページ・検索・フォロー・メールとパスワードの変更
+  name: ユーザー
+- description: 表示名・自己紹介・アイコンの変更
+  name: 自分の設定
+paths:
+  /api/auth/login:
+    post:
+      description: 成功すると Cookie(SNS_SESSION)が付く。1つのメールアドレスにつき5分に10回まで
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      security: []
+      summary: ログイン
+      tags:
+      - 認証
+  /api/auth/logout:
+    post:
+      description: ログインしていなくても 204 を返す
+      operationId: logout
+      responses:
+        "204":
+          description: No Content
+      security: []
+      summary: ログアウト
+      tags:
+      - 認証
+  /api/auth/me:
+    get:
+      operationId: getCurrentUser
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: ログイン中の自分の情報
+      tags:
+      - 認証
+  /api/auth/register:
+    post:
+      description: 登録だけではログインしない。続けてログインの API を呼ぶ
+      operationId: register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: メールアドレスかユーザー名が、既に使われている
+      security: []
+      summary: ユーザー登録
+      tags:
+      - 認証
+  /api/me/icon:
+    delete:
+      description: 表示名の頭文字の丸に戻る
+      operationId: deleteIcon
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: アイコンを外す
+      tags:
+      - 自分の設定
+    put:
+      description: JPEG か PNG、1MBまで
+      operationId: putIcon
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                icon:
+                  type: string
+                  format: binary
+              required:
+              - icon
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ファイルが大きすぎる
+      summary: アイコンを変える
+      tags:
+      - 自分の設定
+  /api/me/profile:
+    patch:
+      description: 送った項目だけ変える。表示名は50字まで。自己紹介は160字まで(絵文字も1字と数える)で、空にすると消える
+      operationId: updateProfile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdateRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 表示名と自己紹介を変える
+      tags:
+      - 自分の設定
+  /api/posts:
+    post:
+      description: |-
+        本文だけなら JSON、画像を付けるなら multipart/form-data で送る。
+        本文は140字まで(絵文字も1字と数える)。画像は JPEG か PNG を1枚、5MBまで、縦・横それぞれの上限あり。
+        画像があれば本文は空でもよい。投稿は1人1分に10回まで
+      operationId: createPost
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRequest"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/ImagePostForm"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResponse"
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ファイルが大きすぎる
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      summary: 投稿する
+      tags:
+      - 投稿
+  /api/posts/{id}:
+    delete:
+      description: 自分の投稿だけ消せる。リプライ・いいね・リポスト・画像も一緒に消える
+      operationId: deletePost
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: 投稿を消す
+      tags:
+      - 投稿
+    get:
+      operationId: getPost
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: 投稿を1件読む
+      tags:
+      - 投稿
+  /api/posts/{id}/image:
+    get:
+      operationId: getPostImage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+          description: 画像
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: 投稿の画像
+      tags:
+      - 投稿
+  /api/posts/{id}/like:
+    delete:
+      description: いいねしていなければ何も変わらない
+      operationId: unlikePost
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: いいねを取り消す
+      tags:
+      - 投稿
+    post:
+      description: いいね済みなら何も変わらない
+      operationId: likePost
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: いいねする
+      tags:
+      - 投稿
+  /api/posts/{id}/repost:
+    delete:
+      description: リポストしていなければ何も変わらない
+      operationId: undoRepost
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepostResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: リポストを取り消す
+      tags:
+      - リポスト
+    post:
+      description: リポスト済みなら何も変わらない。自分の投稿はリポストできない(400)
+      operationId: repost
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepostResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: リポストする
+      tags:
+      - リポスト
+  /api/posts/{postId}/replies:
+    get:
+      description: 古い順に20件
+      operationId: listReplies
+      parameters:
+      - in: path
+        name: postId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - description: 前のページの最後のリプライの ID。これより新しいものから読む
+        in: query
+        name: after
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplyPage"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: 投稿へのリプライ一覧
+      tags:
+      - リプライ
+    post:
+      description: 本文は140字まで(絵文字も1字と数える)。1人1分に10回まで
+      operationId: createReply
+      parameters:
+      - in: path
+        name: postId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplyResponse"
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      summary: リプライする
+      tags:
+      - リプライ
+  /api/replies/{id}:
+    delete:
+      description: 自分のリプライだけ消せる
+      operationId: deleteReply
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: リプライを消す
+      tags:
+      - リプライ
+  /api/timeline:
+    get:
+      description: みんなの投稿を新しい順に20件。リポストは混ざらない
+      operationId: getTimeline
+      parameters:
+      - description: 前のページの nextCursor(投稿 ID)。これより古い投稿から読む
+        in: query
+        name: before
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 全体タイムライン
+      tags:
+      - 投稿
+  /api/timeline/home:
+    get:
+      description: 自分とフォロー中の人の投稿とリポストを新しい順に20件
+      operationId: getHomeTimeline
+      parameters:
+      - description: 前のページの nextCursor。形式は 投稿ID:リポストID(どちらかが空のこともある)
+        in: query
+        name: before
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: ホームタイムライン
+      tags:
+      - 投稿
+  /api/timeline/home/new:
+    get:
+      description: after より新しい、フォロー中の人の投稿の数(100まで)と、投稿者3人まで。自分の投稿とリポストは数えない
+      operationId: countNewHomePosts
+      parameters:
+      - description: 画面に出ている一番新しい投稿の ID
+        in: query
+        name: after
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewPostsResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: ホームタイムラインの新着
+      tags:
+      - 投稿
+  /api/timeline/new:
+    get:
+      description: after より新しい、他の人の投稿の数(100まで)と、投稿者3人まで
+      operationId: countNewPosts
+      parameters:
+      - description: 画面に出ている一番新しい投稿の ID
+        in: query
+        name: after
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewPostsResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 全体タイムラインの新着
+      tags:
+      - 投稿
+  /api/users:
+    get:
+      description: ユーザー名か表示名の一部で探す。ユーザー名順に20件
+      operationId: searchUsers
+      parameters:
+      - description: 検索語(50文字まで)。空なら結果も空
+        in: query
+        name: q
+        required: false
+        schema:
+          type: string
+          default: ""
+      - description: 前のページの nextCursor
+        in: query
+        name: after
+        required: false
+        schema:
+          type: string
+          default: ""
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPage"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: ユーザー検索
+      tags:
+      - ユーザー
+  /api/users/me:
+    put:
+      description: 現在のパスワードが要る。パスワードを変えると、他の端末はログアウトされる
+      operationId: updateAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: メールアドレスかユーザー名が、既に使われている
+      summary: メールアドレスとパスワードを変える
+      tags:
+      - ユーザー
+  /api/users/{username}:
+    get:
+      description: 自己紹介、投稿数、フォロー数、フォロワー数、自分がフォローしているか
+      operationId: getProfile
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: ユーザーページの情報
+      tags:
+      - ユーザー
+  /api/users/{username}/follow:
+    delete:
+      description: フォローしていなければ何も変わらない
+      operationId: unfollow
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: フォローを解除する
+      tags:
+      - ユーザー
+    post:
+      description: フォロー済みなら何も変わらない。自分はフォローできない(400)
+      operationId: follow
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: フォローする
+      tags:
+      - ユーザー
+  /api/users/{username}/followers:
+    get:
+      description: 新しくフォローされた順に20件
+      operationId: listFollowers
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      - description: 前のページの nextCursor
+        in: query
+        name: before
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPage"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: フォロワーの一覧
+      tags:
+      - ユーザー
+  /api/users/{username}/following:
+    get:
+      description: 新しくフォローした順に20件
+      operationId: listFollowing
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      - description: 前のページの nextCursor
+        in: query
+        name: before
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPage"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: フォロー中の一覧
+      tags:
+      - ユーザー
+  /api/users/{username}/icon:
+    get:
+      operationId: getIcon
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+          description: 画像
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: アイコン画像
+      tags:
+      - ユーザー
+  /api/users/{username}/posts:
+    get:
+      description: 新しい順に20件
+      operationId: listUserPosts
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      - description: 前のページの nextCursor。形式は 投稿ID:リポストID(どちらかが空のこともある)
+        in: query
+        name: before
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: その人の投稿とリポスト
+      tags:
+      - ユーザー
+components:
+  schemas:
+    ApiError:
+      properties:
+        message:
+          type: string
+          description: 画面にそのまま出せる日本語の説明
+        status:
+          type: integer
+          format: int32
+          description: HTTP ステータス
+        timestamp:
+          type: string
+          format: date-time
+    CreateRequest:
+      type: object
+      properties:
+        body:
+          type: string
+          description: 本文。140字まで(絵文字も1字と数える)
+    FollowResponse:
+      type: object
+      properties:
+        followersCount:
+          type: integer
+          format: int64
+        following:
+          type: boolean
+    ImagePostForm:
+      type: object
+      properties:
+        body:
+          type: string
+          description: 本文。140字まで。画像があれば空でもよい
+        image:
+          type: string
+          format: binary
+          description: JPEG か PNG、5MBまで
+      required:
+      - image
+    ImageResponse:
+      type: object
+      properties:
+        height:
+          type: integer
+          format: int32
+        url:
+          type: string
+          description: 画像の URL。読むにはログインが要る
+        width:
+          type: integer
+          format: int32
+    LikeResponse:
+      type: object
+      properties:
+        liked:
+          type: boolean
+        likesCount:
+          type: integer
+          format: int64
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          maxLength: 255
+          minLength: 0
+        password:
+          type: string
+          maxLength: 72
+          minLength: 0
+      required:
+      - email
+      - password
+    NewPostsResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int64
+          description: 新着の数。100で止まる
+        users:
+          type: array
+          description: 新着の投稿者。重複なしで3人まで
+          items:
+            $ref: "#/components/schemas/PublicUser"
+    PageResponse:
+      type: object
+      properties:
+        hasMore:
+          type: boolean
+        nextCursor:
+          type: string
+          description: 次のページを読むときに before に渡す値。続きが無ければ null
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PostResponse"
+    PostResponse:
+      type: object
+      properties:
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          description: 投稿 ID(文字列)
+        image:
+          $ref: "#/components/schemas/ImageResponse"
+          description: 画像。無ければ null
+        likedByMe:
+          type: boolean
+        likesCount:
+          type: integer
+          format: int64
+        repliesCount:
+          type: integer
+          format: int64
+        repostedBy:
+          $ref: "#/components/schemas/PublicUser"
+          description: リポストした人。リポストとして出すときだけ入り、それ以外は null
+        repostedByMe:
+          type: boolean
+        repostsCount:
+          type: integer
+          format: int64
+        user:
+          $ref: "#/components/schemas/PublicUser"
+    ProfileResponse:
+      type: object
+      properties:
+        bio:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        displayName:
+          type: string
+        followedByMe:
+          type: boolean
+        followersCount:
+          type: integer
+          format: int64
+        followingCount:
+          type: integer
+          format: int64
+        iconUpdatedAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+        postsCount:
+          type: integer
+          format: int64
+        username:
+          type: string
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        bio:
+          type: string
+          description: 自己紹介。160字まで(絵文字も1字と数える)。空にすると消える
+        displayName:
+          type: string
+          maxLength: 50
+          minLength: 0
+    PublicUser:
+      type: object
+      properties:
+        displayName:
+          type: string
+        iconUpdatedAt:
+          type: string
+          format: date-time
+          description: アイコンを変えた時刻。アイコンが無ければ null
+        id:
+          type: string
+        username:
+          type: string
+    RegisterRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          maxLength: 50
+          minLength: 0
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 0
+        password:
+          type: string
+          maxLength: 72
+          minLength: 8
+        username:
+          type: string
+          minLength: 1
+          pattern: "[A-Za-z0-9_]{1,15}"
+      required:
+      - displayName
+      - email
+      - password
+      - username
+    ReplyPage:
+      type: object
+      properties:
+        hasMore:
+          type: boolean
+        replies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReplyResponse"
+    ReplyResponse:
+      type: object
+      properties:
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+        postId:
+          type: string
+        user:
+          $ref: "#/components/schemas/PublicUser"
+    RepostResponse:
+      type: object
+      properties:
+        reposted:
+          type: boolean
+        repostsCount:
+          type: integer
+          format: int64
+    UpdateRequest:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+          description: 新しいメールアドレス。変えないなら省く
+          maxLength: 255
+          minLength: 0
+        newPassword:
+          type: string
+          description: 新しいパスワード。変えないなら省く
+          maxLength: 72
+          minLength: 8
+      required:
+      - currentPassword
+    UserPage:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          description: 次のページを読むときに渡す値。続きが無ければ null
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserSummary"
+    UserResponse:
+      type: object
+      properties:
+        bio:
+          type: string
+          description: 自己紹介。無ければ null
+        createdAt:
+          type: string
+          format: date-time
+        displayName:
+          type: string
+        email:
+          type: string
+        iconUpdatedAt:
+          type: string
+          format: date-time
+          description: アイコンを変えた時刻。アイコンが無ければ null
+        id:
+          type: string
+        username:
+          type: string
+    UserSummary:
+      type: object
+      properties:
+        bio:
+          type: string
+        displayName:
+          type: string
+        iconUpdatedAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+        username:
+          type: string
+  securitySchemes:
+    session:
+      description: ログインすると付く Cookie。Swagger UI では、ログインの API を試すと自動で付く
+      in: cookie
+      name: SNS_SESSION
+      type: apiKey

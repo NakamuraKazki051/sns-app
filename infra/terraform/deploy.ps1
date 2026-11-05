@@ -57,7 +57,7 @@ $commands = @(
     "aws s3 cp --region $region --only-show-errors s3://$bucket/app.jar app.jar.new",
     'mv app.jar.new app.jar',
     'docker compose up -d --force-recreate app',
-    'for i in $(seq 1 36); do code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/api/auth/me || true); if [ "$code" = 401 ]; then echo app-ready; exit 0; fi; sleep 5; done',
+    'for i in $(seq 1 60); do code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/api/auth/me || true); if [ "$code" = 401 ]; then echo app-ready; exit 0; fi; sleep 5; done',
     'echo app-not-ready; docker compose logs --tail 80 app; exit 1'
 )
 $params = Join-Path ([IO.Path]::GetTempPath()) 'sns-app-deploy.json'

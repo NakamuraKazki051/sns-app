@@ -1,13 +1,18 @@
 package com.snsapp.api.user;
 
 import com.snsapp.api.auth.CurrentUser;
+import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.ImageFiles;
+import com.snsapp.api.common.OpenApiConfig;
 import com.snsapp.api.common.TextLength;
 import com.snsapp.api.user.UserDtos.ProfileUpdateRequest;
 import com.snsapp.api.user.UserDtos.UserResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -25,6 +30,7 @@ import java.time.temporal.ChronoUnit;
 /** 設定画面: 表示名とアイコンの変更 */
 @RestController
 @RequestMapping("/api/me")
+@Tag(name = OpenApiConfig.TAG_ME)
 public class MeController {
 
     // 見た目で160字でも、結合文字を大量に重ねた文字列は巨大になりうる。数える前に生の長さでも止める
@@ -41,6 +47,9 @@ public class MeController {
         this.currentUser = currentUser;
     }
 
+    @Operation(operationId = "updateProfile", summary = "表示名と自己紹介を変える",
+            description = "送った項目だけ変える。表示名は50字まで。自己紹介は160字まで(絵文字も1字と数える)で、空にすると消える")
+    @ApiErrors(400)
     @PatchMapping("/profile")
     @Transactional
     public UserResponse updateProfile(@Valid @RequestBody ProfileUpdateRequest request, HttpServletRequest httpRequest) {
@@ -63,7 +72,10 @@ public class MeController {
         return UserResponse.from(user);
     }
 
-    @PutMapping("/icon")
+    @Operation(operationId = "putIcon", summary = "アイコンを変える",
+            description = "JPEG か PNG、1MBまで")
+    @ApiErrors({400, 413})
+    @PutMapping(path = "/icon", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Transactional
     public UserResponse putIcon(@RequestParam("icon") MultipartFile file, HttpServletRequest httpRequest)
             throws IOException {
@@ -91,6 +103,8 @@ public class MeController {
     }
 
     /** アイコンを外して、表示名の頭文字の丸に戻す */
+    @Operation(operationId = "deleteIcon", summary = "アイコンを外す",
+            description = "表示名の頭文字の丸に戻る")
     @DeleteMapping("/icon")
     @Transactional
     public UserResponse deleteIcon(HttpServletRequest httpRequest) {

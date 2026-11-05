@@ -1,14 +1,17 @@
 package com.snsapp.api.post;
 
 import com.snsapp.api.auth.CurrentUser;
+import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.ImageFiles;
+import com.snsapp.api.common.OpenApiConfig;
 import com.snsapp.api.common.RateLimiter;
 import com.snsapp.api.common.TextLength;
 import com.snsapp.api.follow.FollowRepository;
 import com.snsapp.api.like.PostLike;
 import com.snsapp.api.like.PostLikeRepository;
 import com.snsapp.api.post.PostDtos.CreateRequest;
+import com.snsapp.api.post.PostDtos.ImagePostForm;
 import com.snsapp.api.post.PostDtos.LikeResponse;
 import com.snsapp.api.post.PostDtos.NewPostsResponse;
 import com.snsapp.api.post.PostDtos.PageResponse;
@@ -16,6 +19,13 @@ import com.snsapp.api.post.PostDtos.PostResponse;
 import com.snsapp.api.user.User;
 import com.snsapp.api.user.UserDtos.PublicUser;
 import com.snsapp.api.user.UserRepository;
+import io.swagger.v3.oas.annotations.Hidden;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +54,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
+@Tag(name = OpenApiConfig.TAG_POST)
 public class PostController {
 
     private static final Logger log = LoggerFactory.getLogger(PostController.class);
@@ -86,8 +97,13 @@ public class PostController {
     }
 
     /** 全体タイムライン。before(投稿 ID)を渡すと、それより古いものから */
+    @Operation(operationId = "getTimeline", summary = "全体タイムライン",
+            description = "みんなの投稿を新しい順に20件。リポストは混ざらない")
+    @ApiErrors(400)
     @GetMapping("/timeline")
-    public PageResponse timeline(@RequestParam(required = false) Long before, HttpServletRequest httpRequest) {
+    public PageResponse timeline(
+            @Parameter(description = "前のページの nextCursor(投稿 ID)。これより古い投稿から読む")
+            @RequestParam(required = false) Long before, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         Limit limit = Limit.of(PAGE_SIZE + 1);
         return postViews.page(before == null
@@ -99,8 +115,13 @@ public class PostController {
      * ホームタイムライン: 自分とフォロー中の人の投稿と、その人たちのリポスト。
      * before には前のページの nextCursor を渡す(投稿とリポストのどこまで出したかが入っている)
      */
+    @Operation(operationId = "getHomeTimeline", summary = "ホームタイムライン",
+            description = "自分とフォロー中の人の投稿とリポストを新しい順に20件")
+    @ApiErrors(400)
     @GetMapping("/timeline/home")
-    public PageResponse home(@RequestParam(required = false) String before, HttpServletRequest httpRequest) {
+    public PageResponse home(
+            @Parameter(description = "前のページの nextCursor。形式は 投稿ID:リポストID(どちらかが空のこともある)")
+            @RequestParam(required = false) String before, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         return postViews.feedOf(authorsOfHome(userId), before, userId);
     }
@@ -109,16 +130,26 @@ public class PostController {
      * 全体タイムラインの新着: after(画面に出ている一番新しい投稿の ID)より新しい、他の人の投稿の数。
      * 画面が30秒ごとに聞きに来て、あれば「新しい投稿 N件」を出す
      */
+    @Operation(operationId = "countNewPosts", summary = "全体タイムラインの新着",
+            description = "after より新しい、他の人の投稿の数(100まで)と、投稿者3人まで")
+    @ApiErrors(400)
     @GetMapping("/timeline/new")
-    public NewPostsResponse newPosts(@RequestParam long after, HttpServletRequest httpRequest) {
+    public NewPostsResponse newPosts(
+            @Parameter(description = "画面に出ている一番新しい投稿の ID") @RequestParam long after,
+            HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         return newPostsOf(postRepository.findByIdGreaterThanAndUserIdNotOrderByIdDesc(
                 after, userId, Limit.of(NEW_POSTS_MAX)));
     }
 
     /** ホームタイムラインの新着: フォロー中の人の新しい投稿(自分の投稿とリポストは数えない) */
+    @Operation(operationId = "countNewHomePosts", summary = "ホームタイムラインの新着",
+            description = "after より新しい、フォロー中の人の投稿の数(100まで)と、投稿者3人まで。自分の投稿とリポストは数えない")
+    @ApiErrors(400)
     @GetMapping("/timeline/home/new")
-    public NewPostsResponse newHomePosts(@RequestParam long after, HttpServletRequest httpRequest) {
+    public NewPostsResponse newHomePosts(
+            @Parameter(description = "画面に出ている一番新しい投稿の ID") @RequestParam long after,
+            HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         List<String> followees = followRepository.findFolloweeIds(userId);
         if (followees.isEmpty()) {
@@ -143,12 +174,25 @@ public class PostController {
         return authorIds;
     }
 
+    @Operation(operationId = "getPost", summary = "投稿を1件読む")
+    @ApiErrors({400, 404})
     @GetMapping("/posts/{id}")
     public PostResponse show(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         return postViews.one(findPost(id), userId);
     }
 
+    @Operation(operationId = "createPost", summary = "投稿する",
+            description = """
+                    本文だけなら JSON、画像を付けるなら multipart/form-data で送る。
+                    本文は140字まで(絵文字も1字と数える)。画像は JPEG か PNG を1枚、5MBまで、縦・横それぞれの上限あり。
+                    画像があれば本文は空でもよい。投稿は1人1分に10回まで""",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = {
+                    @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = CreateRequest.class)),
+                    @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                            schema = @Schema(implementation = ImagePostForm.class))}))
+    @ApiErrors({400, 413, 429})
     @PostMapping("/posts")
     @ResponseStatus(HttpStatus.CREATED)
     public PostResponse create(@RequestBody CreateRequest request, HttpServletRequest httpRequest) {
@@ -163,6 +207,7 @@ public class PostController {
      * 画像付きの投稿(multipart/form-data)。image に JPEG か PNG を1枚(5MBまで)、body に本文。
      * 画像があれば本文は空でもよい
      */
+    @Hidden // 仕様書では createPost に2つの形式としてまとめて書いている
     @PostMapping(path = "/posts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public PostResponse createWithImage(@RequestParam(value = "body", required = false) String body,
@@ -208,6 +253,11 @@ public class PostController {
     }
 
     /** 投稿の画像。投稿の画像は後から変わらないので、ブラウザには長くキャッシュさせる */
+    @Operation(operationId = "getPostImage", summary = "投稿の画像")
+    @ApiResponse(responseCode = "200", description = "画像", content = {
+            @Content(mediaType = "image/jpeg", schema = @Schema(type = "string", format = "binary")),
+            @Content(mediaType = "image/png", schema = @Schema(type = "string", format = "binary"))})
+    @ApiErrors({400, 404})
     @GetMapping("/posts/{id}/image")
     public ResponseEntity<byte[]> image(@PathVariable Long id, HttpServletRequest httpRequest) throws IOException {
         currentUser.require(httpRequest);
@@ -225,6 +275,9 @@ public class PostController {
     }
 
     // 他人の投稿は 403 ではなく 404 にする(消せる投稿が存在しない、という扱い)。リプライといいねは DB が一緒に消す
+    @Operation(operationId = "deletePost", summary = "投稿を消す",
+            description = "自分の投稿だけ消せる。リプライ・いいね・リポスト・画像も一緒に消える")
+    @ApiErrors({400, 404})
     @DeleteMapping("/posts/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, HttpServletRequest httpRequest) {
@@ -240,6 +293,9 @@ public class PostController {
     }
 
     /** いいねする。もういいね済みならそのまま(何度押しても1回分) */
+    @Operation(operationId = "likePost", summary = "いいねする",
+            description = "いいね済みなら何も変わらない")
+    @ApiErrors({400, 404})
     @PostMapping("/posts/{id}/like")
     public LikeResponse like(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
@@ -255,6 +311,9 @@ public class PostController {
     }
 
     /** いいねを取り消す。いいねしていなければそのまま */
+    @Operation(operationId = "unlikePost", summary = "いいねを取り消す",
+            description = "いいねしていなければ何も変わらない")
+    @ApiErrors({400, 404})
     @DeleteMapping("/posts/{id}/like")
     public LikeResponse unlike(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);

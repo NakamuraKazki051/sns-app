@@ -1,12 +1,17 @@
 package com.snsapp.api.auth;
 
 import com.snsapp.api.auth.AuthDtos.LoginRequest;
+import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
+import com.snsapp.api.common.OpenApiConfig;
+import com.snsapp.api.common.PublicApi;
 import com.snsapp.api.common.RateLimiter;
 import com.snsapp.api.user.User;
 import com.snsapp.api.user.UserDtos.RegisterRequest;
 import com.snsapp.api.user.UserDtos.UserResponse;
 import com.snsapp.api.user.UserRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -26,6 +31,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = OpenApiConfig.TAG_AUTH)
 public class AuthController {
 
     // 1つのメールアドレスに対して、この回数を超えるログインは一定時間受け付けない(パスワードの総当たり対策)。
@@ -50,6 +56,10 @@ public class AuthController {
         this.dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
+    @Operation(operationId = "register", summary = "ユーザー登録",
+            description = "登録だけではログインしない。続けてログインの API を呼ぶ")
+    @PublicApi
+    @ApiErrors({400, 409})
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse register(@Valid @RequestBody RegisterRequest request) {
@@ -70,6 +80,10 @@ public class AuthController {
         }
     }
 
+    @Operation(operationId = "login", summary = "ログイン",
+            description = "成功すると Cookie(SNS_SESSION)が付く。1つのメールアドレスにつき5分に10回まで")
+    @PublicApi
+    @ApiErrors({400, 401, 429})
     @PostMapping("/login")
     public UserResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         String email = request.email().trim().toLowerCase();
@@ -90,6 +104,9 @@ public class AuthController {
         return UserResponse.from(user);
     }
 
+    @Operation(operationId = "logout", summary = "ログアウト",
+            description = "ログインしていなくても 204 を返す")
+    @PublicApi
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(HttpServletRequest httpRequest) {
@@ -99,6 +116,7 @@ public class AuthController {
         }
     }
 
+    @Operation(operationId = "getCurrentUser", summary = "ログイン中の自分の情報")
     @GetMapping("/me")
     public UserResponse me(HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);

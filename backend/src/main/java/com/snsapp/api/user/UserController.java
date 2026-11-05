@@ -1,7 +1,9 @@
 package com.snsapp.api.user;
 
 import com.snsapp.api.auth.CurrentUser;
+import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
+import com.snsapp.api.common.OpenApiConfig;
 import com.snsapp.api.follow.Follow;
 import com.snsapp.api.follow.FollowRepository;
 import com.snsapp.api.post.PostDtos.PageResponse;
@@ -13,6 +15,12 @@ import com.snsapp.api.user.UserDtos.UpdateRequest;
 import com.snsapp.api.user.UserDtos.UserPage;
 import com.snsapp.api.user.UserDtos.UserResponse;
 import com.snsapp.api.user.UserDtos.UserSummary;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -38,6 +46,7 @@ import java.util.function.Function;
 
 @RestController
 @RequestMapping("/api/users")
+@Tag(name = OpenApiConfig.TAG_USER)
 public class UserController {
 
     /** 検索・フォロー一覧の1ページの件数 */
@@ -67,8 +76,13 @@ public class UserController {
     }
 
     /** ユーザー検索: ユーザー名か表示名の一部。ユーザー名順に20件ずつ。after には前のページの nextCursor を渡す */
+    @Operation(operationId = "searchUsers", summary = "ユーザー検索",
+            description = "ユーザー名か表示名の一部で探す。ユーザー名順に20件")
+    @ApiErrors(400)
     @GetMapping
-    public UserPage search(@RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "") String after,
+    public UserPage search(
+            @Parameter(description = "検索語(50文字まで)。空なら結果も空") @RequestParam(defaultValue = "") String q,
+            @Parameter(description = "前のページの nextCursor") @RequestParam(defaultValue = "") String after,
                            HttpServletRequest httpRequest) {
         currentUser.require(httpRequest);
         String query = q.strip();
@@ -85,6 +99,9 @@ public class UserController {
     }
 
     /** ユーザーページ: 自己紹介、投稿数、フォロー数・フォロワー数、自分がフォローしているか */
+    @Operation(operationId = "getProfile", summary = "ユーザーページの情報",
+            description = "自己紹介、投稿数、フォロー数、フォロワー数、自分がフォローしているか")
+    @ApiErrors(404)
     @GetMapping("/{username}")
     public ProfileResponse show(@PathVariable String username, HttpServletRequest httpRequest) {
         String viewerId = currentUser.require(httpRequest);
@@ -96,8 +113,13 @@ public class UserController {
     }
 
     /** その人の投稿とリポストの一覧。before には前のページの nextCursor を渡す */
+    @Operation(operationId = "listUserPosts", summary = "その人の投稿とリポスト",
+            description = "新しい順に20件")
+    @ApiErrors({400, 404})
     @GetMapping("/{username}/posts")
-    public PageResponse posts(@PathVariable String username, @RequestParam(required = false) String before,
+    public PageResponse posts(@PathVariable String username,
+                              @Parameter(description = "前のページの nextCursor。形式は 投稿ID:リポストID(どちらかが空のこともある)")
+                              @RequestParam(required = false) String before,
                               HttpServletRequest httpRequest) {
         String viewerId = currentUser.require(httpRequest);
         User user = findUser(username);
@@ -105,6 +127,9 @@ public class UserController {
     }
 
     /** フォローする。もうフォロー済みならそのまま(何度押しても1回分) */
+    @Operation(operationId = "follow", summary = "フォローする",
+            description = "フォロー済みなら何も変わらない。自分はフォローできない(400)")
+    @ApiErrors({400, 404})
     @PostMapping("/{username}/follow")
     public FollowResponse follow(@PathVariable String username, HttpServletRequest httpRequest) {
         String viewerId = currentUser.require(httpRequest);
@@ -123,6 +148,9 @@ public class UserController {
     }
 
     /** フォローを解除する。フォローしていなければそのまま */
+    @Operation(operationId = "unfollow", summary = "フォローを解除する",
+            description = "フォローしていなければ何も変わらない")
+    @ApiErrors(404)
     @DeleteMapping("/{username}/follow")
     public FollowResponse unfollow(@PathVariable String username, HttpServletRequest httpRequest) {
         String viewerId = currentUser.require(httpRequest);
@@ -132,8 +160,12 @@ public class UserController {
     }
 
     /** フォロー中の一覧(新しくフォローした順)。before には前のページの nextCursor を渡す */
+    @Operation(operationId = "listFollowing", summary = "フォロー中の一覧",
+            description = "新しくフォローした順に20件")
+    @ApiErrors({400, 404})
     @GetMapping("/{username}/following")
-    public UserPage following(@PathVariable String username, @RequestParam(required = false) Long before,
+    public UserPage following(@PathVariable String username,
+                              @Parameter(description = "前のページの nextCursor") @RequestParam(required = false) Long before,
                               HttpServletRequest httpRequest) {
         currentUser.require(httpRequest);
         User user = findUser(username);
@@ -145,8 +177,12 @@ public class UserController {
     }
 
     /** フォロワーの一覧(新しくフォローされた順)。before には前のページの nextCursor を渡す */
+    @Operation(operationId = "listFollowers", summary = "フォロワーの一覧",
+            description = "新しくフォローされた順に20件")
+    @ApiErrors({400, 404})
     @GetMapping("/{username}/followers")
-    public UserPage followers(@PathVariable String username, @RequestParam(required = false) Long before,
+    public UserPage followers(@PathVariable String username,
+                              @Parameter(description = "前のページの nextCursor") @RequestParam(required = false) Long before,
                               HttpServletRequest httpRequest) {
         currentUser.require(httpRequest);
         User user = findUser(username);
@@ -158,6 +194,11 @@ public class UserController {
     }
 
     /** アイコン画像。URL に ?v=<更新時刻> が付くので、ブラウザには長くキャッシュさせる */
+    @Operation(operationId = "getIcon", summary = "アイコン画像")
+    @ApiResponse(responseCode = "200", description = "画像", content = {
+            @Content(mediaType = "image/jpeg", schema = @Schema(type = "string", format = "binary")),
+            @Content(mediaType = "image/png", schema = @Schema(type = "string", format = "binary"))})
+    @ApiErrors(404)
     @GetMapping("/{username}/icon")
     public ResponseEntity<byte[]> icon(@PathVariable String username, HttpServletRequest httpRequest) {
         currentUser.require(httpRequest);
@@ -170,6 +211,9 @@ public class UserController {
                 .body(icon.getData());
     }
 
+    @Operation(operationId = "updateAccount", summary = "メールアドレスとパスワードを変える",
+            description = "現在のパスワードが要る。パスワードを変えると、他の端末はログアウトされる")
+    @ApiErrors({400, 409})
     @PutMapping("/me")
     public UserResponse updateMe(@Valid @RequestBody UpdateRequest request, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
