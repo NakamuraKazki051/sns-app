@@ -1,9 +1,11 @@
 package com.snsapp.api.user;
 
 import com.snsapp.api.auth.CurrentUser;
+import com.snsapp.api.auth.EmailVerificationService;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.OpenApiConfig;
+import com.snsapp.api.common.RateLimiter;
 import com.snsapp.api.follow.Follow;
 import com.snsapp.api.follow.FollowRepository;
 import com.snsapp.api.post.PostDtos.PageResponse;
@@ -55,6 +57,9 @@ public class UserController {
     // 検索語はユーザー名(15字)・表示名(50字)の一部なので、それより長いものは探しても見つからない
     static final int QUERY_MAX = 50;
 
+    private static final int EMAIL_CHANGES = 3;
+    private static final Duration EMAIL_CHANGE_WINDOW = Duration.ofHours(1);
+
     private final UserRepository userRepository;
     private final UserIconRepository userIconRepository;
     private final PostRepository postRepository;
@@ -62,10 +67,13 @@ public class UserController {
     private final PostViews postViews;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUser currentUser;
+    private final EmailVerificationService emailVerification;
+    private final RateLimiter rateLimiter;
 
     public UserController(UserRepository userRepository, UserIconRepository userIconRepository,
                           PostRepository postRepository, FollowRepository followRepository, PostViews postViews,
-                          PasswordEncoder passwordEncoder, CurrentUser currentUser) {
+                          PasswordEncoder passwordEncoder, CurrentUser currentUser,
+                          EmailVerificationService emailVerification, RateLimiter rateLimiter) {
         this.userRepository = userRepository;
         this.userIconRepository = userIconRepository;
         this.postRepository = postRepository;
@@ -73,6 +81,8 @@ public class UserController {
         this.postViews = postViews;
         this.passwordEncoder = passwordEncoder;
         this.currentUser = currentUser;
+        this.emailVerification = emailVerification;
+        this.rateLimiter = rateLimiter;
     }
 
     /** ユーザー検索: ユーザー名か表示名の一部。ユーザー名順に20件ずつ。after には前のページの nextCursor を渡す */
@@ -212,8 +222,9 @@ public class UserController {
     }
 
     @Operation(operationId = "updateAccount", summary = "メールアドレスとパスワードを変える",
-            description = "現在のパスワードが要る。パスワードを変えると、他の端末はログアウトされる")
-    @ApiErrors({400, 409})
+            description = "現在のパスワードが要る。パスワードを変えると、他の端末はログアウトされる。"
+                    + "メールアドレスは、新しいアドレスに届く確認メールのリンクを開くまで変わらない(1時間に3回まで)")
+    @ApiErrors({400, 409, 429, 503})
     @PutMapping("/me")
     public UserResponse updateMe(@Valid @RequestBody UpdateRequest request, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
@@ -226,10 +237,20 @@ public class UserController {
 
         if (request.email() != null && !request.email().isBlank()) {
             String email = request.email().trim().toLowerCase();
-            if (!email.equals(user.getEmail()) && userRepository.existsByEmail(email)) {
-                throw ApiException.conflict("このメールアドレスは既に登録されています: " + email);
+            if (!email.equals(user.getEmail())) {
+                if (userRepository.existsByEmail(email)) {
+                    throw ApiException.conflict("このメールアドレスは既に登録されています: " + email);
+                }
+                if (emailVerification.isRequired()) {
+                    // 他人のアドレスに確認メールを送り続けられないように数える
+                    if (!rateLimiter.tryAcquire("email-change:" + userId, EMAIL_CHANGES, EMAIL_CHANGE_WINDOW)) {
+                        throw ApiException.tooManyRequests("メールアドレスの変更の回数が多すぎます。1時間ほど待ってからもう一度お試しください");
+                    }
+                    emailVerification.send(user, email);
+                } else {
+                    user.setEmail(email);
+                }
             }
-            user.setEmail(email);
         }
 
         boolean passwordChanged = request.newPassword() != null && !request.newPassword().isBlank();

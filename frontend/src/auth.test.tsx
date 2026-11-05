@@ -112,6 +112,35 @@ describe("ログインが必要な画面", () => {
     expect(screen.queryByText(/有効期限が切れました/)).toBeNull();
   });
 
+  it("メールの確認がまだなら、登録のあとに案内を出し、確認メールを送り直せる", async () => {
+    const fetchMock = mockFetch((url) => {
+      if (url === "/api/auth/register") return { status: 201, body: ME };
+      if (url === "/api/auth/login") return { status: 403, body: { message: "メールアドレスの確認が済んでいません" } };
+      if (url === "/api/auth/resend-verification") return { status: 204 };
+      return { status: 401, body: { message: "ログインが必要です" } };
+    });
+    renderApp("/login");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "新規登録" }));
+    await user.type(screen.getByLabelText(/^ユーザー名/), "alice");
+    await user.type(screen.getByLabelText("表示名"), "アリス");
+    await user.type(screen.getByLabelText("メールアドレス"), "alice@example.com");
+    await user.type(screen.getByLabelText(/^パスワード/), "password123");
+    await user.click(screen.getByRole("button", { name: "登録してはじめる" }));
+
+    expect(await screen.findByRole("heading", { name: "メールを確認してください" })).toBeTruthy();
+    expect(screen.getByText(/alice@example.com に届いたメール/)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "確認メールを送り直す" }));
+    expect(await screen.findByText("確認メールを送り直しました")).toBeTruthy();
+    const resend = fetchMock.mock.calls.find(([url]) => url === "/api/auth/resend-verification")!;
+    expect(JSON.parse(resend[1]?.body as string)).toEqual({ email: "alice@example.com" });
+
+    await user.click(screen.getByRole("button", { name: "ログイン画面に戻る" }));
+    expect(screen.getByRole("button", { name: "ログイン" })).toBeTruthy();
+  });
+
   it("新規登録は画面で形式を確かめ、通れば登録してそのままログインする", async () => {
     const fetchMock = mockFetch((url) => {
       if (url === "/api/auth/register") return { status: 201, body: ME };

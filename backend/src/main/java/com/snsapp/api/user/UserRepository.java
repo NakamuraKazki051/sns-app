@@ -2,9 +2,12 @@ package com.snsapp.api.user;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +18,12 @@ public interface UserRepository extends JpaRepository<User, String> {
     // ユーザー名は大文字・小文字を区別しない(DB の照合順序による)
     boolean existsByUsername(String username);
     Optional<User> findByUsername(String username);
+
+    /** 確認されなかった登録を消す。ログインできないので、投稿などは持っていない */
+    @Modifying
+    @Transactional
+    @Query("delete from User u where u.emailVerifiedAt is null and u.createdAt < :before")
+    void deleteUnverifiedBefore(@Param("before") Instant before);
 
     /**
      * ユーザー名か表示名の一部で探す。ユーザー名順に並べ、after(ユーザー名)より後ろから読む。

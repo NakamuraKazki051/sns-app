@@ -14,4 +14,14 @@ public class AuthDtos {
             @NotBlank @Size(max = 72, message = "パスワードは72文字以内で入力してください") String password
     ) {
     }
+
+    public record VerifyEmailRequest(
+            @NotBlank @Size(max = 100, message = "リンクが正しくないか、有効期限が切れています") String token
+    ) {
+    }
+
+    public record ResendVerificationRequest(
+            @NotBlank @Size(max = 255, message = "メールアドレスは255文字以内で入力してください") String email
+    ) {
+    }
 }

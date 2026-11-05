@@ -42,13 +42,20 @@ cd "$APP_DIR"
 set +x
 DB_PASSWORD=$(retry aws ssm get-parameter --region "${region}" --name "${db_password_parameter}" \
   --with-decryption --query Parameter.Value --output text)
+# 確認メールを送る Gmail。まだ登録していなければ空のまま進み、アプリはリンクをログに出す
+MAIL_USERNAME=$(aws ssm get-parameter --region "${region}" --name "/${project}/mail/username" \
+  --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
+MAIL_PASSWORD=$(aws ssm get-parameter --region "${region}" --name "/${project}/mail/password" \
+  --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
 umask 077
 cat > .env <<EOF
 DB_PASSWORD=$DB_PASSWORD
 ORIGIN_SECRET=${origin_secret}
+MAIL_USERNAME=$MAIL_USERNAME
+MAIL_PASSWORD=$MAIL_PASSWORD
 EOF
 umask 022
-unset DB_PASSWORD
+unset DB_PASSWORD MAIL_USERNAME MAIL_PASSWORD
 set -x
 
 cat > docker-compose.yml <<'EOF'
@@ -74,6 +81,10 @@ services:
       APP_ORIGIN_SECRET: $${ORIGIN_SECRET}
       # 1つの IP から1時間に登録できる回数
       REGISTER_PER_HOUR: "5"
+      # 確認メールのリンクの先と、送るのに使う Gmail
+      APP_PUBLIC_URL: ${app_origin}
+      MAIL_USERNAME: $${MAIL_USERNAME}
+      MAIL_PASSWORD: $${MAIL_PASSWORD}
     volumes:
       - ./app.jar:/app/app.jar:ro
     command: ["java", "-Xmx384m", "-Xss512k", "-XX:MaxMetaspaceSize=128m", "-jar", "/app/app.jar"]

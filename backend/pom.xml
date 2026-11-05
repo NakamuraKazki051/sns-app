@@ -34,6 +34,11 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
+    <!-- 確認メールの送信 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-mail</artifactId>
+    </dependency>
     <!-- API 仕様書(Swagger UI と /v3/api-docs)をコードから作る。設定は springdoc.yml -->
     <dependency>
       <groupId>org.springdoc</groupId>

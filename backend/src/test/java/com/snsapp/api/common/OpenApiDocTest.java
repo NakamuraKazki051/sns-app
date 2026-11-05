@@ -64,7 +64,8 @@ class OpenApiDocTest extends ApiTestSupport {
                 assertTrue(operation.get("responses").has("401"), name + " の仕様書に 401 がありません");
             }
         }
-        assertEquals(Set.of("POST /api/auth/register", "POST /api/auth/login", "POST /api/auth/logout"), publicApis);
+        assertEquals(Set.of("POST /api/auth/register", "POST /api/auth/login", "POST /api/auth/logout",
+                "POST /api/auth/verify-email", "POST /api/auth/resend-verification"), publicApis);
         assertEquals(28, needLogin);
     }
 

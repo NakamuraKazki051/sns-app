@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useSearchParams } from "react-router";
-import { errorMessage } from "../api";
+import { api, ApiError, errorMessage } from "../api";
 import { useAuth } from "../auth";
 import { DISPLAY_NAME_MAX, displayNameLength, safeNext } from "../text";
 
@@ -25,6 +25,9 @@ export function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "", username: "", displayName: "" });
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  // メールアドレスの確認待ちのアドレス。あれば、フォームの代わりに案内を出す
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
 
   // ログイン済みなら(ログイン直後も)元の画面へ
   if (me) return <Navigate to={safeNext(params.get("next"))} replace />;
@@ -53,9 +56,64 @@ export function LoginPage() {
         });
       }
     } catch (e) {
-      setError(errorMessage(e));
+      // 登録の直後も、続けて行うログインがここに来る
+      if (e instanceof ApiError && e.status === 403) {
+        setUnverifiedEmail(form.email.trim());
+      } else {
+        setError(errorMessage(e));
+      }
       setSending(false);
     }
+  }
+
+  async function resend() {
+    setSending(true);
+    setError(null);
+    setResent(false);
+    try {
+      await api<void>("/api/auth/resend-verification", { method: "POST", body: { email: unverifiedEmail } });
+      setResent(true);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (unverifiedEmail) {
+    return (
+      <main className="container">
+        <h1 className="login-title">RaiseLine</h1>
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="card form">
+          <h2>メールを確認してください</h2>
+          <p>
+            {unverifiedEmail} に届いたメールのリンクを開くと、ログインできるようになります。リンクの有効期限は24時間です。
+          </p>
+          <p>届かないときは、迷惑メールのフォルダも確認してください。</p>
+          {resent && <p className="notice">確認メールを送り直しました</p>}
+          <button type="button" className="button" disabled={sending} onClick={resend}>
+            {sending ? "送信中…" : "確認メールを送り直す"}
+          </button>
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              setUnverifiedEmail(null);
+              setResent(false);
+              setError(null);
+              setMode("login");
+            }}
+          >
+            ログイン画面に戻る
+          </button>
+        </div>
+      </main>
+    );
   }
 
   function switchMode(next: "login" | "register") {

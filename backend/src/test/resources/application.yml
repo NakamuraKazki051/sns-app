@@ -18,6 +18,10 @@ spring:
 
 # 投稿の画像はテスト用のフォルダに置く(target の中なので mvn clean で消える)
 app:
+  public-url: http://localhost:5173
+  # ほとんどのテストは登録してすぐログインする。確認の動きは EmailVerificationTest で確かめる
+  email-verification:
+    required: false
   register:
     per-hour: 100000
   images:

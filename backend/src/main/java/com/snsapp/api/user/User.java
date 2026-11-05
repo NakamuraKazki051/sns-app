@@ -43,6 +43,9 @@ public class User {
 
     private Instant createdAt;
 
+    // メールアドレスを確認した時刻。確認が済むまで null で、ログインできない
+    private Instant emailVerifiedAt;
+
     protected User() {
     }
 
@@ -74,6 +77,16 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerifiedAt != null;
+    }
+
+    /** email の持ち主だと確かめられた */
+    public void verifyEmail(String email, Instant at) {
+        this.email = email;
+        this.emailVerifiedAt = at;
     }
 
     public String getPasswordHash() {

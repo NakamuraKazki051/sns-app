@@ -9,15 +9,17 @@ import { SearchPage } from "./pages/SearchPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TimelinePage } from "./pages/TimelinePage";
 import { UserPage } from "./pages/UserPage";
+import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 
 /**
- * 画面の一覧。/login 以外はログインが必要(RequireAuth)。
+ * 画面の一覧。/login と /verify-email 以外はログインが必要(RequireAuth)。
  * ユーザーページは /@ユーザー名。React Router は「@ + パラメーター」を書けないので、:handle で受けて @ を確かめる
  */
 export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route
         element={
           <RequireAuth>

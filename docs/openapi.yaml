@@ -56,6 +56,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: メールアドレスの確認が済んでいない
         "429":
           content:
             application/json:
@@ -98,7 +104,7 @@ paths:
       - 認証
   /api/auth/register:
     post:
-      description: 登録だけではログインしない。続けてログインの API を呼ぶ。1つの IP から1時間に5回まで(入力の誤りは数えない)
+      description: 登録だけではログインしない。確認メールのリンクを開いたあと、ログインの API を呼ぶ。1つの IP から1時間に5回まで(入力の誤りは数えない)
       operationId: register
       requestBody:
         content:
@@ -131,8 +137,72 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: 回数が多すぎる。少し待ってからやり直す
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 確認メールを送れなかった。少し待ってからやり直す
       security: []
       summary: ユーザー登録
+      tags:
+      - 認証
+  /api/auth/resend-verification:
+    post:
+      description: 登録の有無が分からないよう、送らなかったときも 204 を返す。1つのアドレスにつき1時間に3回まで
+      operationId: resendVerification
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendVerificationRequest"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      security: []
+      summary: 確認メールの再送
+      tags:
+      - 認証
+  /api/auth/verify-email:
+    post:
+      description: 確認メールのリンクに入っているトークンを送る。トークンは1回だけ使える
+      operationId: verifyEmail
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailRequest"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: メールアドレスかユーザー名が、既に使われている
+      security: []
+      summary: メールアドレスの確認
       tags:
       - 認証
   /api/me/icon:
@@ -857,7 +927,7 @@ paths:
       - ユーザー
   /api/users/me:
     put:
-      description: 現在のパスワードが要る。パスワードを変えると、他の端末はログアウトされる
+      description: 現在のパスワードが要る。パスワードを変えると、他の端末はログアウトされる。メールアドレスは、新しいアドレスに届く確認メールのリンクを開くまで変わらない(1時間に3回まで)
       operationId: updateAccount
       requestBody:
         content:
@@ -890,6 +960,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: メールアドレスかユーザー名が、既に使われている
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 確認メールを送れなかった。少し待ってからやり直す
       summary: メールアドレスとパスワードを変える
       tags:
       - ユーザー
@@ -1415,6 +1497,15 @@ components:
         repostsCount:
           type: integer
           format: int64
+    ResendVerificationRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          maxLength: 255
+          minLength: 0
+      required:
+      - email
     UpdateRequest:
       type: object
       properties:
@@ -1491,6 +1582,15 @@ components:
           type: string
         username:
           type: string
+    VerifyEmailRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          maxLength: 100
+          minLength: 0
+      required:
+      - token
   securitySchemes:
     session:
       description: ログインすると付く Cookie。Swagger UI では、ログインの API を試すと自動で付く

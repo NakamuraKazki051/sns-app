@@ -29,6 +29,11 @@ if (-not (Test-Path .terraform)) {
     if ($LASTEXITCODE -ne 0) { throw 'terraform init に失敗しました。' }
 }
 
+aws ssm get-parameter --region $region --name /sns-app/mail/password --query Parameter.Name --output text *> $null
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning '確認メールの Gmail が未登録です。このままだと新規登録の確認メールが届きません（README の「確認メールの送信」を参照）。'
+}
+
 $latest = aws rds describe-db-snapshots --region $region --snapshot-type manual `
     --query "reverse(sort_by(DBSnapshots[?starts_with(DBSnapshotIdentifier, '$db-') && Status=='available'], &SnapshotCreateTime))[0].DBSnapshotIdentifier" `
     --output text

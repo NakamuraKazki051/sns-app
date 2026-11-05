@@ -77,8 +77,12 @@ resource "aws_iam_role_policy" "read_db_password" {
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = "ssm:GetParameter"
-      Resource = aws_ssm_parameter.db_password.arn
+      Action = "ssm:GetParameter"
+      Resource = [
+        aws_ssm_parameter.db_password.arn,
+        # 確認メールを送る Gmail。Terraform の外で作る（state に入れないため。README を参照）
+        "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/mail/*",
+      ]
     }]
   })
 }
@@ -96,6 +100,7 @@ resource "aws_instance" "app" {
   associate_public_ip_address = true
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
     region                = var.region
+    project               = var.project
     db_host               = aws_db_instance.db.address
     db_name               = aws_db_instance.db.db_name
     db_username           = aws_db_instance.db.username

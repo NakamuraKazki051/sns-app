@@ -64,10 +64,12 @@ public class OpenApiConfig {
     private static final Map<Integer, String> ERROR_DESCRIPTIONS = Map.of(
             400, "入力が正しくない",
             401, "ログインしていない(ログインの API では、メールアドレスかパスワードが違う)",
+            403, "メールアドレスの確認が済んでいない",
             404, "見つからない(他の人の投稿やリプライを消そうとしたときも)",
             409, "メールアドレスかユーザー名が、既に使われている",
             413, "ファイルが大きすぎる",
-            429, "回数が多すぎる。少し待ってからやり直す");
+            429, "回数が多すぎる。少し待ってからやり直す",
+            503, "確認メールを送れなかった。少し待ってからやり直す");
 
     @Bean
     OperationCustomizer documentAuthAndErrors() {
