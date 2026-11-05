@@ -77,6 +77,10 @@ public class MeController {
         if (contentType == null) {
             throw ApiException.badRequest("アイコン画像は JPEG か PNG にしてください");
         }
+        // 先頭だけ画像に見せかけた壊れたファイルは保存しない
+        if (ImageFiles.readSize(data) == null) {
+            throw ApiException.badRequest("画像を読み込めませんでした。別の画像でお試しください");
+        }
         // ミリ秒に揃えて、DB に保存したあとも応答と同じ値になるようにする
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         UserIcon icon = userIconRepository.findById(user.getId()).orElseGet(() -> new UserIcon(user.getId()));

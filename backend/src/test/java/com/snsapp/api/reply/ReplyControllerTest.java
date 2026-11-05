@@ -1,6 +1,7 @@
 package com.snsapp.api.reply;
 
 import com.snsapp.api.ApiTestSupport;
+import com.snsapp.api.post.PostController;
 import com.snsapp.api.post.PostRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -92,6 +93,18 @@ class ReplyControllerTest extends ApiTestSupport {
         for (int i = 0; i < seen.size(); i++) {
             assertEquals("リプライ " + i, seen.get(i));
         }
+    }
+
+    @Test
+    void rejectedRepliesDoNotUseUpTheLimit() throws Exception {
+        MockHttpSession session = registerAndLogin();
+        String postId = createPost(session, "投稿");
+        for (int i = 0; i <= PostController.POSTS_PER_WINDOW; i++) {
+            mockMvc.perform(json(post("/api/posts/" + postId + "/replies").session(session), Map.of("body", "   ")))
+                    .andExpect(status().isBadRequest());
+        }
+        mockMvc.perform(json(post("/api/posts/" + postId + "/replies").session(session), Map.of("body", "返事")))
+                .andExpect(status().isCreated());
     }
 
     @Test

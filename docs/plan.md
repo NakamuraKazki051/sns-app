@@ -29,9 +29,9 @@ RaiseLine は旧Twitter風のテキストSNS。140文字の投稿を書いて、
 | バックエンド | Java 25 + Spring Boot 4.1 + Maven（Spring Data JPA、Flyway、BCrypt） |
 | データベース | MySQL 8.4（ローカルは Docker、AWS は RDS） |
 | テスト | JUnit 5 + MockMvc（テスト用 DB は H2）、フロントは Vitest |
-| インフラ | AWS（EC2 + RDS、画像を入れるフェーズ4で S3）+ Terraform |
+| インフラ | AWS（EC2 + RDS、画像は S3、HTTPS は CloudFront）+ Terraform |
 
-- 画面と API は同じオリジンで配信する（ビルドした React を Spring Boot の静的ファイルとして同梱）。ログインの Cookie をそのまま使えるので、JWT や CORS の設定が要らない
+- 画面と API は同じオリジンで配信する（ビルドした React を Spring Boot の静的ファイルとして同梱）。ログインの Cookie をそのまま使えるので、JWT が要らない
 - 手本: バックエンドは `task-manager-app`（Spring Boot）、デプロイは `finance-manager-app`（EC2 + RDS）
 
 ## プロジェクト構成
@@ -80,6 +80,8 @@ sns-app/
 2026-10-30: ユーザーの依頼で、フェーズ2（ユーザー検索・リプライ・いいね）とフェーズ3（フォロー・ホームタイムライン・自己紹介）を前倒しで実装した（API・画面・テスト）。残りはフェーズ4（リポスト・画像）。2026-10-31: リポスト（F-13）を実装した（テーブルは Flyway の `V2__reposts.sql`）。2026-11-04: 画像の添付（F-14。保存はローカルはディスク、AWS は S3。カラムは `V3__post_images.sql`）と、ユーザーの依頼で新着のお知らせ（F-16、「↑ 新しい投稿 N件」）を実装した。参考にした別の SNS の計画にあった無限スクロールも入れた（「もっと見る」が画面に近づいたら自動で読む）。これで要件の機能はすべて済み。動きは [`spec.md`](./spec.md)、ログインの決まりは [`auth.md`](./auth.md) にまとめた。
 
 2026-11-05: フェーズ4の画像添付（F-14）を入れた（PR #9）。あわせて新着バナーと無限スクロールも入れた。AWS でも、S3 への保存・表示・削除、外から読めないこと、EC2 の権限が `post-images/` の中だけであることを確かめた。
+
+2026-11-05: AWS 環境を CloudFront で HTTPS にした（PR #12。ブラウザ〜CloudFront の間）。次の候補は Swagger の導入（[`swagger-plan.md`](./swagger-plan.md)）。
 
 ## 検証方法
 

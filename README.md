@@ -10,6 +10,7 @@
 - [`docs/spec.md`](./docs/spec.md)：仕様書（画面・API・データ・テスト）
 - [`docs/auth.md`](./docs/auth.md)：認証機能 定義書（バックエンド・フロントエンド）
 - [`docs/plan.md`](./docs/plan.md)：計画書（実装ステップと進み具合）
+- [`docs/swagger-plan.md`](./docs/swagger-plan.md)：Swagger（OpenAPI）で API 仕様書を自動生成する計画書
 
 ## 構成
 

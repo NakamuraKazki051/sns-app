@@ -76,10 +76,11 @@ public class ReplyController {
                                 HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         Post post = postController.findPost(postId);
+        String body = PostController.bodyValue(request.body(), "リプライ");
+        // 入力の確認が済んでから回数に数える(空のリプライで弾かれた分は数えない)
         if (!rateLimiter.tryAcquire("reply:" + userId, PostController.POSTS_PER_WINDOW, PostController.POST_WINDOW)) {
             throw ApiException.tooManyRequests("リプライが多すぎます。1分ほど待ってからもう一度お試しください");
         }
-        String body = PostController.bodyValue(request.body(), "リプライ");
         Reply reply = new Reply(post, userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.unauthorized("ログインしていません")), body);
         return ReplyResponse.from(replyRepository.save(reply));

@@ -153,8 +153,9 @@ public class PostController {
     @ResponseStatus(HttpStatus.CREATED)
     public PostResponse create(@RequestBody CreateRequest request, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        acquirePostSlot(userId);
         String body = bodyValue(request.body(), "投稿");
+        // 入力の確認が済んでから回数に数える(空の投稿で弾かれた分は数えない)
+        acquirePostSlot(userId);
         return postViews.one(postRepository.save(new Post(findUser(userId), body)), userId);
     }
 
