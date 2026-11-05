@@ -23,17 +23,20 @@ data "aws_ssm_parameter" "al2023_ami" {
 
 resource "aws_security_group" "app" {
   name        = "${var.project}-app"
-  description = "App (screens and API) on 80. No SSH; use Session Manager."
+  description = "App (screens and API) on 80, from CloudFront only. No SSH; use Session Manager."
   vpc_id      = data.aws_vpc.default.id
 }
 
-# 80番だけ開ける。中では Spring Boot（8080）につながっている
-resource "aws_vpc_security_group_ingress_rule" "app" {
-  for_each = toset(var.allowed_http_cidrs)
+# AWS が管理している CloudFront の送信元 IP の一覧
+data "aws_ec2_managed_prefix_list" "cloudfront" {
+  name = "com.amazonaws.global.cloudfront.origin-facing"
+}
 
+# 80番を CloudFront からだけ開ける。暗号化されない http://<IP>/ を直接開かれないように。中では Spring Boot（8080）につながっている
+resource "aws_vpc_security_group_ingress_rule" "app" {
   security_group_id = aws_security_group.app.id
-  description       = "http"
-  cidr_ipv4         = each.value
+  description       = "http from CloudFront"
+  prefix_list_id    = data.aws_ec2_managed_prefix_list.cloudfront.id
   from_port         = 80
   to_port           = 80
   ip_protocol       = "tcp"
@@ -98,6 +101,7 @@ resource "aws_instance" "app" {
     db_username           = aws_db_instance.db.username
     db_password_parameter = aws_ssm_parameter.db_password.name
     images_bucket         = data.aws_s3_bucket.images.bucket
+    app_origin            = "https://${aws_cloudfront_distribution.app.domain_name}"
   })
 
   # CPUを使いすぎたときに追加料金が出る「unlimited」モードにしない

@@ -38,3 +38,5 @@ server:
         name: SNS_SESSION
         http-only: true
         same-site: lax
+        # AWS(https)では true。ローカルは http なので false(true だとログインできない)
+        secure: ${SESSION_COOKIE_SECURE:false}
