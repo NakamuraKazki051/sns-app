@@ -3,6 +3,7 @@ package com.snsapp.api.auth;
 import com.snsapp.api.common.ApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
@@ -23,10 +24,19 @@ public class GmailVerificationMailer implements VerificationMailer {
     private final String username;
     private final JavaMailSenderImpl sender;
 
+    @Autowired
     public GmailVerificationMailer(@Value("${app.mail.username:}") String username,
                                    @Value("${app.mail.password:}") String password) {
+        this(username, gmailSender(username, password));
+    }
+
+    GmailVerificationMailer(String username, JavaMailSenderImpl sender) {
         this.username = username;
-        this.sender = new JavaMailSenderImpl();
+        this.sender = sender;
+    }
+
+    private static JavaMailSenderImpl gmailSender(String username, String password) {
+        JavaMailSenderImpl sender = new JavaMailSenderImpl();
         sender.setHost("smtp.gmail.com");
         sender.setPort(587);
         sender.setUsername(username);
@@ -41,6 +51,7 @@ public class GmailVerificationMailer implements VerificationMailer {
         properties.put("mail.smtp.connectiontimeout", "5000");
         properties.put("mail.smtp.timeout", "10000");
         properties.put("mail.smtp.writetimeout", "10000");
+        return sender;
     }
 
     @Override
@@ -64,7 +75,8 @@ public class GmailVerificationMailer implements VerificationMailer {
         try {
             sender.send(message);
         } catch (MailException e) {
-            log.error("確認メールを送れませんでした: {}", to, e);
+            // 例外の文章にはメールアドレスが入ることがあるので、種類だけ出す
+            log.error("確認メールを送れませんでした: {}", e.getMostSpecificCause().getClass().getSimpleName());
             throw ApiException.serviceUnavailable("確認メールを送れませんでした。時間をおいてもう一度お試しください");
         }
     }
