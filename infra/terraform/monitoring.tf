@@ -16,9 +16,9 @@ locals {
 
   # 数が多いときに知らせるアラーム。データが無いのは問題なしとして扱う
   count_alarms = {
-    errors = { name = "サーバーエラーが多い", metric = "AppErrors", period = 300, threshold = 5 }
-    slow   = { name = "応答が遅い", metric = "SlowRequests", period = 600, threshold = 20 }
-    mail   = { name = "確認メールを送れない", metric = "MailFailures", period = 300, threshold = 0 }
+    errors = { name = "errors", description = "サーバーエラーが多い", metric = "AppErrors", period = 300, threshold = 5 }
+    slow   = { name = "slow", description = "応答が遅い", metric = "SlowRequests", period = 600, threshold = 20 }
+    mail   = { name = "mail", description = "確認メールを送れない", metric = "MailFailures", period = 300, threshold = 0 }
   }
 }
 
@@ -45,10 +45,13 @@ resource "aws_cloudwatch_log_metric_filter" "app" {
   }
 }
 
+# アラームの名前はメールの件名に出る。日本語は件名で崩れるので英字にして、説明を本文に出す
+#
 # アプリは1分ごとに生存のログを出す。届かなくなると「データ不足」に変わるので、それを通知する。
-# 作った直後もデータ不足だが、変わったときにしか通知しないので、起動のたびに通知は来ない
+# 作った直後もデータ不足だが、変わったときにしか通知しない。起動すると OK に変わるので、OK のメールが1通届く
 resource "aws_cloudwatch_metric_alarm" "app_down" {
-  alarm_name          = "${var.project}: アプリが応答しない"
+  alarm_name          = "${var.project}-app-down"
+  alarm_description   = "アプリが応答しない。コンテナと RDS を確かめる"
   namespace           = local.metric_namespace
   metric_name         = "Heartbeat"
   statistic           = "Sum"
@@ -68,7 +71,8 @@ resource "aws_cloudwatch_metric_alarm" "app_down" {
 resource "aws_cloudwatch_metric_alarm" "counts" {
   for_each = local.count_alarms
 
-  alarm_name          = "${var.project}: ${each.value.name}"
+  alarm_name          = "${var.project}-${each.value.name}"
+  alarm_description   = each.value.description
   namespace           = local.metric_namespace
   metric_name         = each.value.metric
   statistic           = "Sum"
@@ -86,7 +90,8 @@ resource "aws_cloudwatch_metric_alarm" "counts" {
 
 # メモリとディスクは、EC2 の report-metrics が5分ごとに送る（user_data.sh.tftpl）
 resource "aws_cloudwatch_metric_alarm" "memory" {
-  alarm_name          = "${var.project}: メモリが足りない"
+  alarm_name          = "${var.project}-memory"
+  alarm_description   = "メモリが足りない"
   namespace           = local.metric_namespace
   metric_name         = "MemoryAvailablePercent"
   statistic           = "Average"
@@ -101,7 +106,8 @@ resource "aws_cloudwatch_metric_alarm" "memory" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "disk" {
-  alarm_name          = "${var.project}: ディスクが足りない"
+  alarm_name          = "${var.project}-disk"
+  alarm_description   = "ディスクが足りない"
   namespace           = local.metric_namespace
   metric_name         = "DiskUsedPercent"
   statistic           = "Average"
