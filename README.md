@@ -20,6 +20,8 @@
 | `frontend/` | 画面（React 19 + TypeScript + Vite） |
 | `backend/` | API（Java 25 + Spring Boot 4.1 + Maven） |
 | `prototype/` | 画面のモック（HTML/CSS/JS、ダミーデータ）。`index.html` をブラウザで開くだけで動く |
+| `e2e/` | 結合テスト（Playwright のシナリオ、実行スクリプト） |
+| `.github/workflows/` | PR ごとのテストの自動実行（GitHub Actions） |
 | `perf/` | 性能テスト（k6 のシナリオ、テストデータの SQL、実行スクリプト） |
 | `infra/terraform/` | AWS 環境（EC2 + RDS MySQL）と、作る・デプロイする・消すスクリプト |
 | `docker-compose.yml` | ローカルの MySQL 8.4（ポート 3307） |
@@ -49,7 +51,11 @@ java -jar target/sns-api-0.1.0.jar      # http://localhost:8080 を開く
 ```powershell
 cd backend; mvn test      # API（H2 を使うので MySQL は不要）
 cd frontend; npm test     # 画面（Vitest）
+./e2e/run.ps1             # 結合（本物の MySQL と Chrome。専用の DB を作って、終わったら消す）
+./e2e/run.ps1 -SkipBuild -Grep 新着   # 名前で絞って動かす
 ```
+
+PR と master への push では、この3つを GitHub Actions が自動で動かす。結合テストが失敗すると、画面の記録を Artifacts に残す。
 
 性能テスト（ユーザー1,000人・投稿10万件。テスト用の DB を作って、終わったら消す。k6 が必要）:
 
