@@ -1,13 +1,15 @@
 # 監視とログ
 
-AWS で動かしているあいだ、止まったこととエラーが増えたことを Datadog で知らせる。Datadog の API キーを登録するまでは、何も送らない。
+AWS で動かしているあいだ、止まったこととエラーが増えたことを CloudWatch で知らせる。無料枠の範囲で使う（ログ 5GB、アラーム 10個、カスタム指標 10個）。
 
 ## 構成
 
-- アプリはログを標準出力に出すだけで、Datadog を知らない
-- EC2 の Datadog Agent が、コンテナのログとサーバーの指標を Datadog に送る
-- API キーは Parameter Store の `/sns-app/datadog/api-key` に置く。無ければ Agent は起動しない
-- Agent のメモリは 256MB までにする（EC2 は1GB、スワップ2GB）
+- アプリはログを標準出力に出すだけで、CloudWatch を知らない
+- Docker の `awslogs` ドライバーが、ログを CloudWatch Logs の `/sns-app/app` に送る。保存は7日
+- ログの中身から、メトリクスフィルターが指標を作る
+- メモリとディスクは、EC2 の `report-metrics` が5分ごとに送る。常駐の Agent は置かない（EC2 のメモリは1GB）
+- アラームは SNS のトピック `sns-app-alarms` からメールで通知する
+- トピックと宛先だけは `infra/terraform/storage` にあり、`down.ps1` で消えない。ほかは環境と一緒に消えるので、止めているあいだは監視も通知もしない
 
 ## ログ
 
@@ -25,37 +27,35 @@ AWS では `LOGGING_STRUCTURED_FORMAT_CONSOLE=logstash` で、1行1件の JSON �
 
 出さないもの: パスワード、Cookie、秘密のヘッダー、メールアドレス、確認リンクのトークン、投稿の本文。例外は、メールを送らないローカルで確認リンクを出す処理だけ。
 
-EC2 の中のログは 10MB × 3 世代まで。`down.ps1` で EC2 と一緒に消える。
+`Heartbeat` は、DB につながることを確かめて、1分ごとに INFO のログを出す。
 
-## アラート
+## アラーム
 
-`infra/datadog/monitors.tf` にある。どれも初期値で、動かしながら調整する。
+`infra/terraform/monitoring.tf` にある。どれも初期値で、動かしながら調整する。
 
-| アラート | 条件 |
+| アラーム | 条件 |
 | --- | --- |
-| アプリが応答しない | 8080番に3回続けてつながらない |
+| アプリが応答しない | `Heartbeat` のログが3分届かない |
 | サーバーエラーが多い | 5分の `ERROR` が5件を超える |
 | 応答が遅い | 10分の「遅いリクエスト」が20件を超える |
 | 確認メールを送れない | 5分に1件でも失敗する |
-| メモリが足りない | 空きが10分の平均で10%を下回る |
-| ディスクが足りない | 使用率が85%を超える |
+| メモリが足りない | 空きが10分続けて10%を下回る |
+| ディスクが足りない | 使用率が10分続けて85%を超える |
 
-データが届かないだけではアラートを出さない。`down.ps1` のたびに通知が来るのを防ぐため。そのため、EC2 ごと止まった場合は通知されない。
+「アプリが応答しない」は、データ不足に変わったときに通知する。EC2 ごと止まったときも通知される。作った直後もデータ不足だが、変わったときにしか通知しないので、`up.ps1` のたびに通知は来ない。
 
-## 有効にする手順
+## 通知先の登録
 
-1. Datadog のアカウントを、サイト `ap1.datadoghq.com`（日本）で作る。料金は登録前に確かめる
-2. `./infra/datadog/set-api-key.ps1` で API キーを登録する。キーはチャットに貼らない
-3. `infra/terraform` の次の `up.ps1` から、Agent が動く
-4. `infra/datadog` で、`terraform.tfvars` に通知先を書く
-5. 環境変数 `DD_API_KEY` と `DD_APP_KEY` を設定して、`terraform apply` でアラートを作る
+1. `infra/terraform/storage/terraform.tfvars` に `alarm_email = "メールアドレス"` と書く（Git には入らない）
+2. `up.ps1` を実行する
+3. AWS から届くメールの「Confirm subscription」を開く。最初の1回だけ
 
-ログを送らないときは、`infra/terraform` の `datadog_logs_enabled` を `false` にする。
-
-## アラートが来たら
+## アラームが来たら
 
 1. CloudFront の URL を Chrome で開き、ログインと投稿ができるか確かめる
-2. Datadog で、その時刻の `ERROR` のログを開く
+2. CloudWatch Logs Insights で `/sns-app/app` を開き、その時刻の `level = "ERROR"` のログを見る
 3. `request_id` で、同じリクエストのログを絞る
 4. 応答しないときは、Session Manager で EC2 に入り、`docker compose ps` と `docker compose logs app` を見る
 5. 不具合なら、再現するテストを先に書いて直す
+
+`down.ps1` でログも消えるので、調べ終わってから止める。

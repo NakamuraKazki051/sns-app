@@ -20,7 +20,7 @@ import java.util.UUID;
 
 /**
  * API のリクエストごとに1件ログを出す。処理中のログにも同じ request_id を付けるので、1つのリクエストを追える。
- * 監視(Datadog)のアラートは、ここの「遅いリクエスト」を数えている。項目は docs/monitoring.md。
+ * 監視(CloudWatch)のアラームは、ここの「遅いリクエスト」を数えている。項目は docs/monitoring.md。
  * クエリ文字列には検索語が入るので出さない
  */
 @Component

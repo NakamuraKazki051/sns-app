@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** リクエストのログ。監視(Datadog)の条件はこの項目を見ている */
+/** リクエストのログ。監視(CloudWatch)の条件はこの項目を見ている */
 class RequestLogFilterTest {
 
     private final Logger logger = (Logger) LoggerFactory.getLogger(RequestLogFilter.class);

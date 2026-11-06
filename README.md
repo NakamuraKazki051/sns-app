@@ -8,7 +8,7 @@
 
 - [`docs/requirements.md`](./docs/requirements.md)：要件定義書
 - [`docs/spec.md`](./docs/spec.md)：仕様書（画面・API・データ・テスト）
-- [`docs/monitoring.md`](./docs/monitoring.md)：監視とログ（Datadog）
+- [`docs/monitoring.md`](./docs/monitoring.md)：監視とログ（CloudWatch）
 - [`docs/auth.md`](./docs/auth.md)：認証機能 定義書（バックエンド・フロントエンド）
 - [`docs/plan.md`](./docs/plan.md)：計画書（実装ステップと進み具合）
 - [`docs/openapi.yaml`](./docs/openapi.yaml)：API 仕様書（コードから自動で作る。下の「API 仕様書」）
