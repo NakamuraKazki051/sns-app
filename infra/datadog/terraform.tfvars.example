@@ -1,0 +1,2 @@
+# terraform.tfvars にコピーして書き換える（Git には入らない）
+notify = "@someone@example.com"

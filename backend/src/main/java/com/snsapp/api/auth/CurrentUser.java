@@ -16,7 +16,7 @@ public class CurrentUser {
     // ログインした時点のパスワードハッシュ。パスワードが変わると一致しなくなり、他の端末のセッションが切れる
     static final String CREDENTIAL_KEY = "credential";
     // 1つのリクエストの中で確かめ終わった人。LoginInterceptor とコントローラーの2回 DB を読まないように
-    private static final String VERIFIED_KEY = CurrentUser.class.getName() + ".verified";
+    public static final String VERIFIED_KEY = CurrentUser.class.getName() + ".verified";
 
     private final UserRepository userRepository;
 
