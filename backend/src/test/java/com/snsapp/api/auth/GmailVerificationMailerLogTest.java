@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** ログは Datadog に送るので、送信に失敗してもメールアドレスを残さない */
+/** ログは CloudWatch に送るので、送信に失敗してもメールアドレスを残さない */
 class GmailVerificationMailerLogTest {
 
     @Test

@@ -82,8 +82,6 @@ resource "aws_iam_role_policy" "read_db_password" {
         aws_ssm_parameter.db_password.arn,
         # 確認メールを送る Gmail。Terraform の外で作る（state に入れないため。README を参照）
         "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/mail/*",
-        # Datadog の API キー。同じく Terraform の外で作る（infra/datadog/set-api-key.ps1）
-        "arn:aws:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/datadog/*",
       ]
     }]
   })
@@ -108,8 +106,7 @@ resource "aws_instance" "app" {
     db_username           = aws_db_instance.db.username
     db_password_parameter = aws_ssm_parameter.db_password.name
     images_bucket         = data.aws_s3_bucket.images.bucket
-    datadog_site          = var.datadog_site
-    datadog_logs_enabled  = var.datadog_logs_enabled
+    log_group             = aws_cloudwatch_log_group.app.name
     app_origin           = "https://${aws_cloudfront_distribution.app.domain_name}"
     origin_secret         = random_password.origin_secret.result
   })

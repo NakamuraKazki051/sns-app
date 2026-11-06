@@ -47,20 +47,15 @@ MAIL_USERNAME=$(aws ssm get-parameter --region "${region}" --name "/${project}/m
   --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
 MAIL_PASSWORD=$(aws ssm get-parameter --region "${region}" --name "/${project}/mail/password" \
   --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
-# Datadog の API キー。登録していなければ空のまま進み、Agent は起動しない
-DD_API_KEY=$(aws ssm get-parameter --region "${region}" --name "/${project}/datadog/api-key" \
-  --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
 umask 077
 cat > .env <<EOF
 DB_PASSWORD=$DB_PASSWORD
 ORIGIN_SECRET=${origin_secret}
 MAIL_USERNAME=$MAIL_USERNAME
 MAIL_PASSWORD=$MAIL_PASSWORD
-DD_API_KEY=$DD_API_KEY
 EOF
 umask 022
-DATADOG_ENABLED=$${DD_API_KEY:+yes}
-unset DB_PASSWORD MAIL_USERNAME MAIL_PASSWORD DD_API_KEY
+unset DB_PASSWORD MAIL_USERNAME MAIL_PASSWORD
 set -x
 
 cat > docker-compose.yml <<'EOF'
@@ -98,46 +93,45 @@ services:
     ports:
       - "80:8080"
     mem_limit: 640m
-    # EC2 の中のログは 10MB × 3 世代まで
+    # ログは CloudWatch Logs に送る。送れないときも、アプリを止めない（non-blocking）
     logging:
-      driver: json-file
+      driver: awslogs
       options:
-        max-size: 10m
-        max-file: "3"
-    # Datadog Agent に、このコンテナの見方を教える
-    labels:
-      com.datadoghq.ad.checks: '{"tcp_check":{"instances":[{"name":"raiseline-app","host":"%%host%%","port":8080}]}}'
-      com.datadoghq.ad.logs: '[{"source":"java","service":"raiseline"}]'
-
-  # API キーを登録したときだけ起動する（--profile datadog）
-  datadog:
-    image: gcr.io/datadoghq/agent:7
-    profiles: ["datadog"]
-    restart: unless-stopped
-    environment:
-      DD_API_KEY: $${DD_API_KEY}
-      DD_SITE: ${datadog_site}
-      DD_ENV: aws
-      DD_TAGS: service:raiseline
-      DD_LOGS_ENABLED: "${datadog_logs_enabled}"
-      DD_APM_ENABLED: "false"
-      DD_PROCESS_AGENT_ENABLED: "false"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /proc/:/host/proc/:ro
-      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-    # メモリ1GBのサーバーなので、アプリを押しのけないよう上限を付ける
-    mem_limit: 256m
+        awslogs-region: ${region}
+        awslogs-group: ${log_group}
+        awslogs-stream: app
+        mode: non-blocking
 EOF
 
 # アプリより先にイメージを取っておく（デプロイ時にすぐ起動できるように）
 retry docker pull eclipse-temurin:25-jre
 
-if [ -n "$DATADOG_ENABLED" ]; then
-  retry docker compose --profile datadog pull datadog
-  docker compose --profile datadog up -d datadog
-fi
+# メモリとディスクの使用量を5分ごとに CloudWatch に送る（Agent を置くとメモリを使うので、小さなスクリプトにする）
+cat > /usr/local/bin/report-metrics <<'EOF'
+#!/bin/bash
+memory=$(awk '/MemTotal/ {total=$2} /MemAvailable/ {free=$2} END {printf "%.1f", free * 100 / total}' /proc/meminfo)
+disk=$(df --output=pcent / | tail -1 | tr -dc 0-9)
+aws cloudwatch put-metric-data --region ${region} --namespace SnsApp --metric-data \
+  "MetricName=MemoryAvailablePercent,Value=$memory,Unit=Percent" \
+  "MetricName=DiskUsedPercent,Value=$disk,Unit=Percent"
+EOF
+chmod +x /usr/local/bin/report-metrics
+
+cat > /etc/systemd/system/report-metrics.service <<'EOF'
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/report-metrics
+EOF
+cat > /etc/systemd/system/report-metrics.timer <<'EOF'
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+EOF
+systemctl daemon-reload
+systemctl enable --now report-metrics.timer
 
 # 起動直後に AWS への接続が一度失敗すると、SSM エージェントは休止して長いあいだ再接続しない。
 # そうなると deploy.ps1 が送れないので、準備の最後にエージェントを起動し直す
