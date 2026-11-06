@@ -48,7 +48,8 @@ resource "aws_cloudwatch_log_metric_filter" "app" {
 # アラームの名前はメールの件名に出る。日本語は件名で崩れるので英字にして、説明を本文に出す
 #
 # アプリは1分ごとに生存のログを出す。届かなくなると「データ不足」に変わるので、それを通知する。
-# 作った直後もデータ不足だが、変わったときにしか通知しない。起動すると OK に変わるので、OK のメールが1通届く
+# 作った直後もデータ不足だが、変わったときにしか通知しない。起動すると OK に変わるので、OK のメールが1通届く。
+# 回復の通知はこのアラームだけ。ほかにも付けると、起動のたびに OK のメールが6通届く
 resource "aws_cloudwatch_metric_alarm" "app_down" {
   alarm_name          = "${var.project}-app-down"
   alarm_description   = "アプリが応答しない。コンテナと RDS を確かめる"
@@ -83,7 +84,6 @@ resource "aws_cloudwatch_metric_alarm" "counts" {
   treat_missing_data  = "notBreaching"
 
   alarm_actions = [data.aws_sns_topic.alarms.arn]
-  ok_actions    = [data.aws_sns_topic.alarms.arn]
 
   depends_on = [aws_cloudwatch_log_metric_filter.app]
 }
@@ -102,7 +102,6 @@ resource "aws_cloudwatch_metric_alarm" "memory" {
   treat_missing_data  = "notBreaching"
 
   alarm_actions = [data.aws_sns_topic.alarms.arn]
-  ok_actions    = [data.aws_sns_topic.alarms.arn]
 }
 
 resource "aws_cloudwatch_metric_alarm" "disk" {
@@ -118,7 +117,6 @@ resource "aws_cloudwatch_metric_alarm" "disk" {
   treat_missing_data  = "notBreaching"
 
   alarm_actions = [data.aws_sns_topic.alarms.arn]
-  ok_actions    = [data.aws_sns_topic.alarms.arn]
 }
 
 # EC2 がログと指標を送るための権限（このロググループと、この名前空間だけ）
