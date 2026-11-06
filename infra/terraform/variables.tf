@@ -39,6 +39,18 @@ variable "db_snapshot_identifier" {
   default     = null
 }
 
+variable "datadog_site" {
+  description = "Datadog のサイト。ap1.datadoghq.com は日本"
+  type        = string
+  default     = "ap1.datadoghq.com"
+}
+
+variable "datadog_logs_enabled" {
+  description = "ログも Datadog に送るか。Agent は API キーを登録したときだけ動く"
+  type        = bool
+  default     = true
+}
+
 variable "db_password_version" {
   description = "DBのパスワードを作り直したいときに1つ増やす（apply すると新しいパスワードに変わる）"
   type        = number

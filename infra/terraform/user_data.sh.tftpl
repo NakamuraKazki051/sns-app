@@ -47,15 +47,20 @@ MAIL_USERNAME=$(aws ssm get-parameter --region "${region}" --name "/${project}/m
   --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
 MAIL_PASSWORD=$(aws ssm get-parameter --region "${region}" --name "/${project}/mail/password" \
   --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
+# Datadog の API キー。登録していなければ空のまま進み、Agent は起動しない
+DD_API_KEY=$(aws ssm get-parameter --region "${region}" --name "/${project}/datadog/api-key" \
+  --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
 umask 077
 cat > .env <<EOF
 DB_PASSWORD=$DB_PASSWORD
 ORIGIN_SECRET=${origin_secret}
 MAIL_USERNAME=$MAIL_USERNAME
 MAIL_PASSWORD=$MAIL_PASSWORD
+DD_API_KEY=$DD_API_KEY
 EOF
 umask 022
-unset DB_PASSWORD MAIL_USERNAME MAIL_PASSWORD
+DATADOG_ENABLED=$${DD_API_KEY:+yes}
+unset DB_PASSWORD MAIL_USERNAME MAIL_PASSWORD DD_API_KEY
 set -x
 
 cat > docker-compose.yml <<'EOF'
@@ -85,16 +90,54 @@ services:
       APP_PUBLIC_URL: ${app_origin}
       MAIL_USERNAME: $${MAIL_USERNAME}
       MAIL_PASSWORD: $${MAIL_PASSWORD}
+      # ログは1行1件の JSON で出す（項目は docs/monitoring.md）
+      LOGGING_STRUCTURED_FORMAT_CONSOLE: logstash
     volumes:
       - ./app.jar:/app/app.jar:ro
     command: ["java", "-Xmx384m", "-Xss512k", "-XX:MaxMetaspaceSize=128m", "-jar", "/app/app.jar"]
     ports:
       - "80:8080"
     mem_limit: 640m
+    # EC2 の中のログは 10MB × 3 世代まで
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    # Datadog Agent に、このコンテナの見方を教える
+    labels:
+      com.datadoghq.ad.checks: '{"tcp_check":{"instances":[{"name":"raiseline-app","host":"%%host%%","port":8080}]}}'
+      com.datadoghq.ad.logs: '[{"source":"java","service":"raiseline"}]'
+
+  # API キーを登録したときだけ起動する（--profile datadog）
+  datadog:
+    image: gcr.io/datadoghq/agent:7
+    profiles: ["datadog"]
+    restart: unless-stopped
+    environment:
+      DD_API_KEY: $${DD_API_KEY}
+      DD_SITE: ${datadog_site}
+      DD_ENV: aws
+      DD_TAGS: service:raiseline
+      DD_LOGS_ENABLED: "${datadog_logs_enabled}"
+      DD_APM_ENABLED: "false"
+      DD_PROCESS_AGENT_ENABLED: "false"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    # メモリ1GBのサーバーなので、アプリを押しのけないよう上限を付ける
+    mem_limit: 256m
 EOF
 
 # アプリより先にイメージを取っておく（デプロイ時にすぐ起動できるように）
 retry docker pull eclipse-temurin:25-jre
+
+if [ -n "$DATADOG_ENABLED" ]; then
+  retry docker compose --profile datadog pull datadog
+  docker compose --profile datadog up -d datadog
+fi
 
 # 起動直後に AWS への接続が一度失敗すると、SSM エージェントは休止して長いあいだ再接続しない。
 # そうなると deploy.ps1 が送れないので、準備の最後にエージェントを起動し直す
