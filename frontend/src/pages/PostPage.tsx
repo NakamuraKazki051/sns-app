@@ -5,10 +5,11 @@ import { useMe } from "../auth";
 import { Avatar } from "../components/Avatar";
 import { Composer } from "../components/Composer";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { LoadFailed } from "../components/LoadFailed";
 import { MoreButton } from "../components/MoreButton";
 import { PostItem } from "../components/PostItem";
 import { useFeedback } from "../feedback";
-import { loadNothing, loadReplies } from "../loaders";
+import { loadNothing, loadReplies, repliesInOrder } from "../loaders";
 import { fullTime, relativeTime } from "../text";
 import type { Post, Reply } from "../types";
 import { usePaged } from "../usePaged";
@@ -21,6 +22,8 @@ export function PostPage() {
   const { showError, showToast } = useFeedback();
   const [post, setPost] = useState<Post | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const validId = /^\d+$/.test(id);
   const replies = usePaged<Reply>(id, validId ? loadReplies(id) : loadNothing);
 
@@ -29,17 +32,19 @@ export function PostPage() {
     let cancelled = false;
     setPost(null);
     setNotFound(false);
+    setLoadError(null);
     api<Post>(`/api/posts/${id}`)
       .then((loaded) => !cancelled && setPost(loaded))
       .catch((e) => {
         if (cancelled) return;
-        if (e instanceof ApiError && e.status === 404) setNotFound(true);
-        else showError(errorMessage(e));
+        // 400 は ID が大きすぎて数として読めないとき。そんな投稿は無い
+        if (e instanceof ApiError && (e.status === 404 || e.status === 400)) setNotFound(true);
+        else setLoadError(errorMessage(e));
       });
     return () => {
       cancelled = true;
     };
-  }, [id, validId, showError]);
+  }, [id, validId, attempt]);
 
   if (!validId || notFound) return <NotFoundPage message="投稿が見つかりません。削除された可能性があります" />;
 
@@ -75,12 +80,14 @@ export function PostPage() {
             }}
           />
         </ul>
+      ) : loadError ? (
+        <LoadFailed message={loadError} onRetry={() => setAttempt((n) => n + 1)} />
       ) : (
         <p className="empty">読み込み中…</p>
       )}
       <Composer placeholder="リプライを書く" submitLabel="リプライ" onSubmit={submitReply} />
       <ul className="post-list">
-        {replies.items.map((reply) => (
+        {repliesInOrder(replies.items).map((reply) => (
           <ReplyItem key={reply.id} reply={reply} onDeleted={replyDeleted} />
         ))}
       </ul>

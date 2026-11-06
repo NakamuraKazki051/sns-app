@@ -271,9 +271,11 @@ public class UserController {
         return UserResponse.from(saved);
     }
 
-    // ユーザー名は大文字・小文字を区別しない(DB の照合順序による)
+    // ユーザー名は大文字・小文字を区別しない(DB の照合順序による)。
+    // メールの確認が済んでいない登録はいないものとして扱う。フォローされると、期限切れの登録を消せなくなる
     private User findUser(String username) {
         return (username.matches(User.USERNAME_PATTERN) ? userRepository.findByUsername(username) : Optional.<User>empty())
+                .filter(User::isEmailVerified)
                 .orElseThrow(() -> ApiException.notFound("ユーザーが見つかりません: @" + username));
     }
 

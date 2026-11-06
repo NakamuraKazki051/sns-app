@@ -203,6 +203,26 @@ class EmailVerificationTest extends ApiTestSupport {
         tokenSentTo(email, 2);
     }
 
+    @Test
+    void aRegistrationIsHiddenUntilTheLinkIsOpened() throws Exception {
+        MockHttpSession viewer = loggedIn(registerAndVerify(registerParams(newUsername())));
+        String username = newUsername();
+        Map<String, Object> params = registerParams(username);
+        register(params).andExpect(status().isCreated());
+
+        // 見えているとフォローでき、フォローされた登録は外部キーのせいで消せなくなる(そのあとの新規登録が全部失敗する)
+        mockMvc.perform(get("/api/users").param("q", username).session(viewer))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.users").isEmpty());
+        mockMvc.perform(get("/api/users/" + username).session(viewer)).andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/users/" + username + "/follow").session(viewer)).andExpect(status().isNotFound());
+
+        verifyToken(tokenSentTo((String) params.get("email"), 1)).andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/users").param("q", username).session(viewer))
+                .andExpect(jsonPath("$.users[0].username").value(username));
+        mockMvc.perform(post("/api/users/" + username + "/follow").session(viewer)).andExpect(status().isOk());
+    }
+
     private MockHttpSession loggedIn(String email) throws Exception {
         return (MockHttpSession) login(email, PASSWORD).andExpect(status().isOk())
                 .andReturn().getRequest().getSession(false);
