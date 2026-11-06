@@ -19,7 +19,7 @@ export function MoreButton({ isEmpty, hasMore, loading, error, onMore, onRetry, 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const onMoreRef = useRef(onMore);
   onMoreRef.current = onMore;
-  const showButton = hasMore && !loading && !error && !isEmpty;
+  const showButton = hasMore && !loading && !error;
 
   useEffect(() => {
     const button = buttonRef.current;
@@ -46,8 +46,7 @@ export function MoreButton({ isEmpty, hasMore, loading, error, onMore, onRetry, 
     );
   }
   if (loading) return <p className="empty">読み込み中…</p>;
-  if (isEmpty) return <p className="empty">{emptyMessage}</p>;
-  if (!hasMore) return null;
+  if (!hasMore) return isEmpty ? <p className="empty">{emptyMessage}</p> : null;
   return (
     <button type="button" className="button more" ref={buttonRef} onClick={onMore}>
       もっと見る

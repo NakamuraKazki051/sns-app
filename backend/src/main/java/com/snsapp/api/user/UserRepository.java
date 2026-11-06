@@ -27,9 +27,9 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     /**
      * ユーザー名か表示名の一部で探す。ユーザー名順に並べ、after(ユーザー名)より後ろから読む。
-     * pattern は %〜% で囲み、% と _ と \ をエスケープ済みのもの
+     * pattern は %〜% で囲み、% と _ と \ をエスケープ済みのもの。メールの確認が済んでいない登録は出さない
      */
     @Query("select u from User u where (u.username like :pattern escape '\\' or u.displayName like :pattern escape '\\')"
-            + " and u.username > :after order by u.username")
+            + " and u.emailVerifiedAt is not null and u.username > :after order by u.username")
     List<User> search(@Param("pattern") String pattern, @Param("after") String after, Limit limit);
 }

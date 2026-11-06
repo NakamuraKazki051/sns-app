@@ -66,7 +66,7 @@ a:hover { text-decoration: underline; }
 .screen-title { padding: 12px 16px; font-size: 20px; border-bottom: 1px solid var(--border); }
 .card { padding: 16px; border-bottom: 1px solid var(--border); }
 .muted { color: var(--muted); }
-.empty { padding: 32px 16px; text-align: center; color: var(--muted); }
+.empty { padding: 32px 16px; text-align: center; color: var(--muted); overflow-wrap: anywhere; }
 
 /* ===== ボタン ===== */
 .button {
@@ -138,8 +138,8 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: tr
 .post:hover { background: var(--bg-sub); }
 .post-body { flex: 1; min-width: 0; }
 .post-meta { display: flex; gap: 4px; align-items: baseline; font-size: 15px; flex-wrap: wrap; }
-.post-meta .name { font-weight: 700; color: var(--text); }
-.post-meta .sub { color: var(--muted); }
+.post-meta .name { font-weight: 700; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.post-meta .sub { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 .post-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .post-delete { margin-left: auto; }
 .post-delete:hover { color: var(--danger); }
@@ -166,7 +166,7 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: tr
 .icon-buttons small { font-size: 12px; }
 
 /* ===== ユーザーページ ===== */
-.profile h2 { font-size: 20px; }
+.profile h2 { font-size: 20px; overflow-wrap: anywhere; }
 
 /* ===== エラーバナー ===== */
 .error-banner {
@@ -199,6 +199,7 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: tr
 
 /* ===== 完了メッセージ ===== */
 .toast {
+  overflow-wrap: anywhere;
   position: fixed;
   bottom: 24px;
   left: 50%;
@@ -244,7 +245,7 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: tr
 .action.unavailable:disabled { cursor: not-allowed; }
 .action.unavailable:hover { color: var(--muted); }
 /* 「○○さんがリポスト」 */
-.repost-label { margin: 0 0 2px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.repost-label { margin: 0 0 2px; font-size: 13px; font-weight: 700; color: var(--muted); overflow-wrap: anywhere; }
 .repost-label a { color: var(--muted); }
 .action.delete { margin-left: auto; }
 .action.delete:hover { color: var(--danger); }

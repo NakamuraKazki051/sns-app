@@ -149,7 +149,8 @@ function EmailForm() {
       const updated = await api<Me>("/api/users/me", { method: "PUT", body: { email: requested, currentPassword: password } });
       updateMe(updated);
       setPassword("");
-      // 新しいアドレスの確認が要るときは、リンクを開くまで変わらない
+      // 新しいアドレスの確認が要るときは、リンクを開くまで変わらない。欄も今のアドレスに戻す
+      setEmail(updated.email);
       showToast(
         updated.email === requested.toLowerCase()
           ? "メールアドレスを変更しました"

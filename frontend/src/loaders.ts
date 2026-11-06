@@ -39,6 +39,14 @@ export function loadReplies(postId: string) {
   };
 }
 
+/**
+ * リプライを古い順に並べる。続きが残っているときに書いたリプライは、読み込んだ分の最後に足すので、
+ * 続きを読むと順番が崩れる。ID は桁が大きくなりうるので BigInt で比べる
+ */
+export function repliesInOrder(replies: Reply[]): Reply[] {
+  return [...replies].sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0));
+}
+
 /** ユーザーの一覧。続きの目印はサーバーが nextCursor で教えてくれる(検索は after、フォロー一覧は before) */
 export function loadUsers(path: string, cursorParam: "after" | "before") {
   return async (cursor: string | null): Promise<Page<UserSummary>> => {

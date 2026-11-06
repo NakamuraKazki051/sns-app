@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router";
 import { api, ApiError, errorMessage } from "../api";
 import { useMe } from "../auth";
 import { Avatar } from "../components/Avatar";
+import { LoadFailed } from "../components/LoadFailed";
 import { PostList } from "../components/PostList";
 import { useFeedback } from "../feedback";
 import { loadPosts, postKey } from "../loaders";
@@ -29,25 +30,29 @@ function UserPageContent({ username }: { username: string }) {
   const { showError } = useFeedback();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [following, setFollowing] = useState(false);
   const postsPath = `/api/users/${username}/posts`;
   const posts = usePaged<Post>(postsPath, loadPosts(postsPath), postKey);
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(null);
     api<Profile>(`/api/users/${username}`)
       .then((loaded) => !cancelled && setProfile(loaded))
       .catch((e) => {
         if (cancelled) return;
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
-        else showError(errorMessage(e));
+        else setLoadError(errorMessage(e));
       });
     return () => {
       cancelled = true;
     };
-  }, [username, showError]);
+  }, [username, attempt]);
 
   if (notFound) return <NotFoundPage message={`ユーザーが見つかりません: @${username}`} />;
+  if (loadError) return <LoadFailed message={loadError} onRetry={() => setAttempt((n) => n + 1)} />;
   if (!profile) return <p className="empty">読み込み中…</p>;
 
   const isMe = profile.id === me.id;
@@ -107,7 +112,10 @@ function UserPageContent({ username }: { username: string }) {
       <PostList
         paged={posts}
         emptyMessage="まだ投稿がありません"
-        onDeleted={() => setProfile((p) => (p ? { ...p, postsCount: Math.max(0, p.postsCount - 1) } : p))}
+        // 他の人のページでも、その人がリポストした自分の投稿は消せる。その人の投稿数は変わらない
+        onDeleted={() => {
+          if (isMe) setProfile((p) => (p ? { ...p, postsCount: Math.max(0, p.postsCount - 1) } : p));
+        }}
       />
     </>
   );

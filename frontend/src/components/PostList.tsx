@@ -1,3 +1,4 @@
+import { useMe } from "../auth";
 import { postKey } from "../loaders";
 import type { Post } from "../types";
 import type { Paged } from "../usePaged";
@@ -14,6 +15,7 @@ type Props = {
 };
 
 export function PostList({ paged, emptyMessage, onDeleted, isNew }: Props) {
+  const me = useMe();
   const { items, setItems } = paged;
   return (
     <>
@@ -24,8 +26,13 @@ export function PostList({ paged, emptyMessage, onDeleted, isNew }: Props) {
             post={post}
             isNew={isNew?.(post) ?? false}
             // 同じ投稿が元の投稿とリポストで何行かに出ていても、いいね数などは全部の行で揃える(誰のリポストかは行ごとに残す)
+            // リポストを取り消したら、「リポストしました」の行は残さない
             onChange={(changed) =>
-              setItems((list) => list.map((p) => (p.id === changed.id ? { ...changed, repostedBy: p.repostedBy } : p)))
+              setItems((list) =>
+                list
+                  .filter((p) => p.id !== changed.id || changed.repostedByMe || p.repostedBy?.id !== me.id)
+                  .map((p) => (p.id === changed.id ? { ...changed, repostedBy: p.repostedBy } : p)),
+              )
             }
             onDeleted={(id) => {
               setItems((list) => list.filter((p) => p.id !== id));
