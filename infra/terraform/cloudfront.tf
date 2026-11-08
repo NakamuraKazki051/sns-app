@@ -15,6 +15,12 @@ resource "random_password" "origin_secret" {
   special = false
 }
 
+# ログインの JWT に署名する鍵。環境を作り直すたびに変わる（そのときは全員がログインし直す）
+resource "random_password" "jwt_secret" {
+  length  = 64
+  special = false
+}
+
 resource "aws_cloudfront_distribution" "app" {
   enabled         = true
   comment         = var.project

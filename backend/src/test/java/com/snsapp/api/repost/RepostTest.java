@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.JsonNode;
@@ -41,60 +41,60 @@ class RepostTest extends ApiTestSupport {
 
     @Test
     void repostAndUndoUpdateTheCountAndMyState() throws Exception {
-        MockHttpSession alice = registerAndLogin();
-        MockHttpSession bob = registerAndLogin();
-        MockHttpSession carol = registerAndLogin();
+        Cookie alice = registerAndLogin();
+        Cookie bob = registerAndLogin();
+        Cookie carol = registerAndLogin();
         String postId = createPost(alice, "広めてね");
 
-        mockMvc.perform(post("/api/posts/" + postId + "/repost").session(bob))
+        mockMvc.perform(post("/api/posts/" + postId + "/repost").cookie(bob))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reposted").value(true))
                 .andExpect(jsonPath("$.repostsCount").value(1));
         // もう一度押しても1回分のまま
-        mockMvc.perform(post("/api/posts/" + postId + "/repost").session(bob))
+        mockMvc.perform(post("/api/posts/" + postId + "/repost").cookie(bob))
                 .andExpect(jsonPath("$.repostsCount").value(1));
-        mockMvc.perform(post("/api/posts/" + postId + "/repost").session(carol))
+        mockMvc.perform(post("/api/posts/" + postId + "/repost").cookie(carol))
                 .andExpect(jsonPath("$.repostsCount").value(2));
 
-        mockMvc.perform(get("/api/posts/" + postId).session(bob))
+        mockMvc.perform(get("/api/posts/" + postId).cookie(bob))
                 .andExpect(jsonPath("$.repostsCount").value(2))
                 .andExpect(jsonPath("$.repostedByMe").value(true))
                 .andExpect(jsonPath("$.repostedBy").isEmpty());
 
-        mockMvc.perform(delete("/api/posts/" + postId + "/repost").session(bob))
+        mockMvc.perform(delete("/api/posts/" + postId + "/repost").cookie(bob))
                 .andExpect(jsonPath("$.reposted").value(false))
                 .andExpect(jsonPath("$.repostsCount").value(1));
-        mockMvc.perform(delete("/api/posts/" + postId + "/repost").session(bob))
+        mockMvc.perform(delete("/api/posts/" + postId + "/repost").cookie(bob))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.repostsCount").value(1));
-        mockMvc.perform(get("/api/posts/" + postId).session(bob))
+        mockMvc.perform(get("/api/posts/" + postId).cookie(bob))
                 .andExpect(jsonPath("$.repostedByMe").value(false));
     }
 
     @Test
     void cannotRepostOwnOrUnknownPostsOrWithoutLogin() throws Exception {
-        MockHttpSession alice = registerAndLogin();
+        Cookie alice = registerAndLogin();
         String postId = createPost(alice, "自分の投稿");
-        mockMvc.perform(post("/api/posts/" + postId + "/repost").session(alice)).andExpect(status().isBadRequest());
-        mockMvc.perform(post("/api/posts/999999999/repost").session(alice)).andExpect(status().isNotFound());
-        mockMvc.perform(delete("/api/posts/999999999/repost").session(alice)).andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/posts/" + postId + "/repost").cookie(alice)).andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/posts/999999999/repost").cookie(alice)).andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/posts/999999999/repost").cookie(alice)).andExpect(status().isNotFound());
         mockMvc.perform(post("/api/posts/" + postId + "/repost")).andExpect(status().isUnauthorized());
     }
 
     @Test
     void followersSeeRepostsOnHomeAndTheReposterPageLabeledWithWhoReposted() throws Exception {
-        MockHttpSession alice = registerAndLogin();
+        Cookie alice = registerAndLogin();
         String bobName = newUsername();
-        MockHttpSession bob = registerAndLogin(bobName);
-        MockHttpSession carol = registerAndLogin();
-        mockMvc.perform(post("/api/users/" + bobName + "/follow").session(alice));
+        Cookie bob = registerAndLogin(bobName);
+        Cookie carol = registerAndLogin();
+        mockMvc.perform(post("/api/users/" + bobName + "/follow").cookie(alice));
 
         String carols = createPost(carol, "キャロルの投稿");
         String alices = createPost(alice, "アリスの投稿");
-        mockMvc.perform(post("/api/posts/" + carols + "/repost").session(bob));
+        mockMvc.perform(post("/api/posts/" + carols + "/repost").cookie(bob));
 
         // フォローしていないキャロルの投稿が、ボブのリポストとして(リポストした時刻の位置に)出る
-        mockMvc.perform(get("/api/timeline/home").session(alice))
+        mockMvc.perform(get("/api/timeline/home").cookie(alice))
                 .andExpect(jsonPath("$.posts.length()").value(2))
                 .andExpect(jsonPath("$.posts[0].id").value(carols))
                 .andExpect(jsonPath("$.posts[0].repostedBy.username").value(bobName))
@@ -103,13 +103,13 @@ class RepostTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.posts[1].id").value(alices))
                 .andExpect(jsonPath("$.posts[1].repostedBy").isEmpty());
 
-        mockMvc.perform(get("/api/users/" + bobName + "/posts").session(carol))
+        mockMvc.perform(get("/api/users/" + bobName + "/posts").cookie(carol))
                 .andExpect(jsonPath("$.posts.length()").value(1))
                 .andExpect(jsonPath("$.posts[0].id").value(carols))
                 .andExpect(jsonPath("$.posts[0].repostedBy.username").value(bobName));
 
         // 全体タイムラインは元の投稿だけ(同じ投稿を2回出さない)
-        JsonNode all = body(perform(get("/api/timeline").session(alice)));
+        JsonNode all = body(perform(get("/api/timeline").cookie(alice)));
         List<JsonNode> carolsInAll = new ArrayList<>();
         all.get("posts").forEach(p -> {
             if (p.get("id").asString().equals(carols)) carolsInAll.add(p);
@@ -118,19 +118,19 @@ class RepostTest extends ApiTestSupport {
         assertTrue(carolsInAll.getFirst().get("repostedBy").isNull());
 
         // 取り消すとタイムラインからも消える
-        mockMvc.perform(delete("/api/posts/" + carols + "/repost").session(bob));
+        mockMvc.perform(delete("/api/posts/" + carols + "/repost").cookie(bob));
         assertEquals(List.of(alices), allPages("/api/timeline/home", alice));
     }
 
     @Test
     void deletingThePostAlsoDeletesItsReposts() throws Exception {
         String bobName = newUsername();
-        MockHttpSession bob = registerAndLogin(bobName);
-        MockHttpSession carol = registerAndLogin();
+        Cookie bob = registerAndLogin(bobName);
+        Cookie carol = registerAndLogin();
         String carols = createPost(carol, "消える投稿");
-        mockMvc.perform(post("/api/posts/" + carols + "/repost").session(bob));
+        mockMvc.perform(post("/api/posts/" + carols + "/repost").cookie(bob));
 
-        mockMvc.perform(delete("/api/posts/" + carols).session(carol)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/posts/" + carols).cookie(carol)).andExpect(status().isNoContent());
         assertEquals(List.of(), allPages("/api/users/" + bobName + "/posts", bob));
         assertEquals(0, repostRepository.countByPostId(Long.valueOf(carols)));
     }
@@ -138,12 +138,12 @@ class RepostTest extends ApiTestSupport {
     @Test
     void homeMixingPostsAndRepostsIsPagedWithoutDuplicatesOrGaps() throws Exception {
         String aliceName = newUsername();
-        MockHttpSession alice = registerAndLogin(aliceName);
+        Cookie alice = registerAndLogin(aliceName);
         String bobName = newUsername();
         registerAndLogin(bobName);
         String carolName = newUsername();
         registerAndLogin(carolName);
-        mockMvc.perform(post("/api/users/" + bobName + "/follow").session(alice));
+        mockMvc.perform(post("/api/users/" + bobName + "/follow").cookie(alice));
         User aliceUser = userRepository.findByUsername(aliceName).orElseThrow();
         User bobUser = userRepository.findByUsername(bobName).orElseThrow();
         User carolUser = userRepository.findByUsername(carolName).orElseThrow();
@@ -171,21 +171,21 @@ class RepostTest extends ApiTestSupport {
 
     @Test
     void malformedCursorIsABadRequest() throws Exception {
-        MockHttpSession session = registerAndLogin();
-        mockMvc.perform(get("/api/timeline/home").session(session).param("before", "abc"))
+        Cookie session = registerAndLogin();
+        mockMvc.perform(get("/api/timeline/home").cookie(session).param("before", "abc"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(get("/api/timeline/home").session(session).param("before", "1:2:3"))
+        mockMvc.perform(get("/api/timeline/home").cookie(session).param("before", "1:2:3"))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(get("/api/timeline/home").session(session).param("before", "5:"))
+        mockMvc.perform(get("/api/timeline/home").cookie(session).param("before", "5:"))
                 .andExpect(status().isOk());
     }
 
     /** 全ページの行を「p投稿ID」(元の投稿)か「r投稿ID@リポストした人」(リポスト)にして返す */
-    private List<String> allEntries(String path, MockHttpSession session) throws Exception {
+    private List<String> allEntries(String path, Cookie session) throws Exception {
         List<String> all = new ArrayList<>();
         String before = null;
         while (true) {
-            MockHttpServletRequestBuilder request = get(path).session(session);
+            MockHttpServletRequestBuilder request = get(path).cookie(session);
             if (before != null) {
                 request.param("before", before);
             }

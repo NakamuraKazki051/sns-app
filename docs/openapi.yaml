@@ -3,7 +3,7 @@ info:
   description: |
     RaiseLine(旧Twitter風のテキストSNS)の API。
 
-    - **ログイン：** `POST /api/auth/login` が返す Cookie(`SNS_SESSION`)で判定する
+    - **ログイン：** `POST /api/auth/login` が返す Cookie(`SNS_TOKEN`、中身は JWT)で判定する
     - **エラー：** 本文は共通の `ApiError`。`message` は画面にそのまま出せる日本語
     - **他のサイトからの呼び出し：** 許可していないオリジンからの POST などは 403
     - **ページ送り：** 1ページ20件。応答の `nextCursor` を次のリクエストに渡す
@@ -12,7 +12,7 @@ info:
 servers:
 - url: /
 security:
-- session: []
+- jwtCookie: []
 tags:
 - description: 登録・ログイン・ログアウト
   name: 認証
@@ -29,7 +29,7 @@ tags:
 paths:
   /api/auth/login:
     post:
-      description: 成功すると Cookie(SNS_SESSION)が付く。1つのメールアドレスにつき5分に10回まで
+      description: 成功すると Cookie(SNS_TOKEN、中身は JWT)が付く。1つのメールアドレスにつき5分に10回まで
       operationId: login
       requestBody:
         content:
@@ -74,7 +74,7 @@ paths:
       - 認証
   /api/auth/logout:
     post:
-      description: ログインしていなくても 204 を返す
+      description: ブラウザの Cookie を消す。ログインしていなくても 204 を返す。JWT そのものは取り消せないので、控えておいた値は期限(最後の操作から30分)まで使える
       operationId: logout
       responses:
         "204":
@@ -927,7 +927,7 @@ paths:
       - ユーザー
   /api/users/me:
     put:
-      description: 現在のパスワードが要る。パスワードを変えると、他の端末はログアウトされる。メールアドレスは、新しいアドレスに届く確認メールのリンクを開くまで変わらない(1時間に3回まで)
+      description: 現在のパスワードが要る。パスワードを変えても、他の端末のログインは期限(最後の操作から30分)まで続く。メールアドレスは、新しいアドレスに届く確認メールのリンクを開くまで変わらない(1時間に3回まで)
       operationId: updateAccount
       requestBody:
         content:
@@ -1592,8 +1592,9 @@ components:
       required:
       - token
   securitySchemes:
-    session:
-      description: ログインすると付く Cookie。Swagger UI では、ログインの API を試すと自動で付く
+    jwtCookie:
+      description: ログインすると付く Cookie(中身は JWT、有効期限は最後の操作から30分)。Swagger UI では、ログインの API
+        を試すと自動で付く
       in: cookie
-      name: SNS_SESSION
+      name: SNS_TOKEN
       type: apiKey

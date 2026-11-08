@@ -34,13 +34,13 @@ import java.util.Set;
         info = @Info(title = "RaiseLine API", version = "0.1.0", description = """
                 RaiseLine(旧Twitter風のテキストSNS)の API。
 
-                - **ログイン：** `POST /api/auth/login` が返す Cookie(`SNS_SESSION`)で判定する
+                - **ログイン：** `POST /api/auth/login` が返す Cookie(`SNS_TOKEN`、中身は JWT)で判定する
                 - **エラー：** 本文は共通の `ApiError`。`message` は画面にそのまま出せる日本語
                 - **他のサイトからの呼び出し：** 許可していないオリジンからの POST などは 403
                 - **ページ送り：** 1ページ20件。応答の `nextCursor` を次のリクエストに渡す
                 """),
         servers = @Server(url = "/"),
-        security = @SecurityRequirement(name = OpenApiConfig.SESSION),
+        security = @SecurityRequirement(name = OpenApiConfig.AUTH_COOKIE),
         tags = {
                 @Tag(name = OpenApiConfig.TAG_AUTH, description = "登録・ログイン・ログアウト"),
                 @Tag(name = OpenApiConfig.TAG_POST, description = "投稿・タイムライン・いいね"),
@@ -49,11 +49,11 @@ import java.util.Set;
                 @Tag(name = OpenApiConfig.TAG_USER, description = "ユーザーページ・検索・フォロー・メールとパスワードの変更"),
                 @Tag(name = OpenApiConfig.TAG_ME, description = "表示名・自己紹介・アイコンの変更")
         })
-@SecurityScheme(name = OpenApiConfig.SESSION, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.COOKIE,
-        paramName = "SNS_SESSION", description = "ログインすると付く Cookie。Swagger UI では、ログインの API を試すと自動で付く")
+@SecurityScheme(name = OpenApiConfig.AUTH_COOKIE, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.COOKIE,
+        paramName = "SNS_TOKEN", description = "ログインすると付く Cookie(中身は JWT、有効期限は最後の操作から30分)。Swagger UI では、ログインの API を試すと自動で付く")
 public class OpenApiConfig {
 
-    static final String SESSION = "session";
+    static final String AUTH_COOKIE = "jwtCookie";
     public static final String TAG_AUTH = "認証";
     public static final String TAG_POST = "投稿";
     public static final String TAG_REPLY = "リプライ";

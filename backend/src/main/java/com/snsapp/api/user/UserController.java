@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
@@ -222,11 +223,12 @@ public class UserController {
     }
 
     @Operation(operationId = "updateAccount", summary = "メールアドレスとパスワードを変える",
-            description = "現在のパスワードが要る。パスワードを変えると、他の端末はログアウトされる。"
+            description = "現在のパスワードが要る。パスワードを変えても、他の端末のログインは期限(最後の操作から30分)まで続く。"
                     + "メールアドレスは、新しいアドレスに届く確認メールのリンクを開くまで変わらない(1時間に3回まで)")
     @ApiErrors({400, 409, 429, 503})
     @PutMapping("/me")
-    public UserResponse updateMe(@Valid @RequestBody UpdateRequest request, HttpServletRequest httpRequest) {
+    public UserResponse updateMe(@Valid @RequestBody UpdateRequest request, HttpServletRequest httpRequest,
+                                 HttpServletResponse httpResponse) {
         String userId = currentUser.require(httpRequest);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.unauthorized("ログインしていません"));
@@ -265,8 +267,8 @@ public class UserController {
             throw ApiException.conflict("このメールアドレスは既に登録されています: " + user.getEmail());
         }
         if (passwordChanged) {
-            // 他の端末のセッションはパスワード不一致で切れる。変更した本人のセッションだけ新しいパスワードで維持する
-            currentUser.signIn(httpRequest, saved);
+            // 変更した本人には新しい JWT を渡す(期限が延びる)。他の端末の JWT は取り消せないので、期限まで使える
+            currentUser.signIn(httpResponse, saved);
         }
         return UserResponse.from(saved);
     }

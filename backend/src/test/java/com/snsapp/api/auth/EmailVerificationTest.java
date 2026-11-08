@@ -8,7 +8,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -205,38 +205,38 @@ class EmailVerificationTest extends ApiTestSupport {
 
     @Test
     void aRegistrationIsHiddenUntilTheLinkIsOpened() throws Exception {
-        MockHttpSession viewer = loggedIn(registerAndVerify(registerParams(newUsername())));
+        Cookie viewer = loggedIn(registerAndVerify(registerParams(newUsername())));
         String username = newUsername();
         Map<String, Object> params = registerParams(username);
         register(params).andExpect(status().isCreated());
 
         // 見えているとフォローでき、フォローされた登録は外部キーのせいで消せなくなる(そのあとの新規登録が全部失敗する)
-        mockMvc.perform(get("/api/users").param("q", username).session(viewer))
+        mockMvc.perform(get("/api/users").param("q", username).cookie(viewer))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.users").isEmpty());
-        mockMvc.perform(get("/api/users/" + username).session(viewer)).andExpect(status().isNotFound());
-        mockMvc.perform(post("/api/users/" + username + "/follow").session(viewer)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/users/" + username).cookie(viewer)).andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/users/" + username + "/follow").cookie(viewer)).andExpect(status().isNotFound());
 
         verifyToken(tokenSentTo((String) params.get("email"), 1)).andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/users").param("q", username).session(viewer))
+        mockMvc.perform(get("/api/users").param("q", username).cookie(viewer))
                 .andExpect(jsonPath("$.users[0].username").value(username));
-        mockMvc.perform(post("/api/users/" + username + "/follow").session(viewer)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/users/" + username + "/follow").cookie(viewer)).andExpect(status().isOk());
     }
 
-    private MockHttpSession loggedIn(String email) throws Exception {
-        return (MockHttpSession) login(email, PASSWORD).andExpect(status().isOk())
-                .andReturn().getRequest().getSession(false);
+    private Cookie loggedIn(String email) throws Exception {
+        return login(email, PASSWORD).andExpect(status().isOk())
+                .andReturn().getResponse().getCookie(CurrentUser.COOKIE_NAME);
     }
 
-    private ResultActions changeEmail(MockHttpSession session, String email) throws Exception {
+    private ResultActions changeEmail(Cookie session, String email) throws Exception {
         return mockMvc.perform(json(put("/api/users/me"), Map.of("email", email, "currentPassword", PASSWORD))
-                .session(session));
+                .cookie(session));
     }
 
     @Test
     void theNewAddressIsUsedOnlyAfterItsLinkIsOpened() throws Exception {
         String oldEmail = registerAndVerify(registerParams(newUsername()));
-        MockHttpSession session = loggedIn(oldEmail);
+        Cookie session = loggedIn(oldEmail);
         String newEmail = newUsername() + "@example.com";
 
         changeEmail(session, newEmail).andExpect(status().isOk()).andExpect(jsonPath("$.email").value(oldEmail));
@@ -244,7 +244,7 @@ class EmailVerificationTest extends ApiTestSupport {
 
         verifyToken(tokenSentTo(newEmail, 1)).andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/auth/me").session(session)).andExpect(jsonPath("$.email").value(newEmail));
+        mockMvc.perform(get("/api/auth/me").cookie(session)).andExpect(jsonPath("$.email").value(newEmail));
         login(newEmail, PASSWORD).andExpect(status().isOk());
         login(oldEmail, PASSWORD).andExpect(status().isUnauthorized());
     }
@@ -265,7 +265,7 @@ class EmailVerificationTest extends ApiTestSupport {
 
     @Test
     void emailChangesAreLimited() throws Exception {
-        MockHttpSession session = loggedIn(registerAndVerify(registerParams(newUsername())));
+        Cookie session = loggedIn(registerAndVerify(registerParams(newUsername())));
         for (int i = 0; i < 3; i++) {
             changeEmail(session, newUsername() + "@example.com").andExpect(status().isOk());
         }

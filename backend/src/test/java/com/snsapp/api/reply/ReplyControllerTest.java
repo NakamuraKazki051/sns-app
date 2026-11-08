@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -35,23 +35,23 @@ class ReplyControllerTest extends ApiTestSupport {
     @Autowired
     private PostRepository postRepository;
 
-    private MvcResult reply(MockHttpSession session, String postId, Object body) throws Exception {
+    private MvcResult reply(Cookie session, String postId, Object body) throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("body", body);
-        return perform(json(post("/api/posts/" + postId + "/replies").session(session), params));
+        return perform(json(post("/api/posts/" + postId + "/replies").cookie(session), params));
     }
 
     @Test
     void repliesAreListedOldestFirstAndCountedOnThePost() throws Exception {
-        MockHttpSession alice = registerAndLogin();
+        Cookie alice = registerAndLogin();
         String bobName = newUsername();
-        MockHttpSession bob = registerAndLogin(bobName);
+        Cookie bob = registerAndLogin(bobName);
         String postId = createPost(alice, "元の投稿");
 
         assertEquals(201, reply(bob, postId, "  1つめ\n改行つき  ").getResponse().getStatus());
         assertEquals(201, reply(alice, postId, "2つめ").getResponse().getStatus());
 
-        mockMvc.perform(get("/api/posts/" + postId + "/replies").session(alice))
+        mockMvc.perform(get("/api/posts/" + postId + "/replies").cookie(alice))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.replies.length()").value(2))
                 .andExpect(jsonPath("$.replies[0].body").value("1つめ\n改行つき"))
@@ -59,15 +59,15 @@ class ReplyControllerTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.replies[0].postId").value(postId))
                 .andExpect(jsonPath("$.replies[1].body").value("2つめ"))
                 .andExpect(jsonPath("$.hasMore").value(false));
-        mockMvc.perform(get("/api/posts/" + postId).session(bob))
+        mockMvc.perform(get("/api/posts/" + postId).cookie(bob))
                 .andExpect(jsonPath("$.repliesCount").value(2));
-        mockMvc.perform(get("/api/timeline").session(bob))
+        mockMvc.perform(get("/api/timeline").cookie(bob))
                 .andExpect(jsonPath("$.posts[0].repliesCount").value(2));
     }
 
     @Test
     void repliesArePagedWithoutDuplicatesOrGaps() throws Exception {
-        MockHttpSession alice = registerAndLogin();
+        Cookie alice = registerAndLogin();
         String postId = createPost(alice, "人気の投稿");
         var post = postRepository.findById(Long.valueOf(postId)).orElseThrow();
         var user = post.getUser();
@@ -78,7 +78,7 @@ class ReplyControllerTest extends ApiTestSupport {
         List<String> seen = new ArrayList<>();
         String after = null;
         while (true) {
-            var request = get("/api/posts/" + postId + "/replies").session(alice);
+            var request = get("/api/posts/" + postId + "/replies").cookie(alice);
             if (after != null) {
                 request.param("after", after);
             }
@@ -97,19 +97,19 @@ class ReplyControllerTest extends ApiTestSupport {
 
     @Test
     void rejectedRepliesDoNotUseUpTheLimit() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         String postId = createPost(session, "投稿");
         for (int i = 0; i <= PostController.POSTS_PER_WINDOW; i++) {
-            mockMvc.perform(json(post("/api/posts/" + postId + "/replies").session(session), Map.of("body", "   ")))
+            mockMvc.perform(json(post("/api/posts/" + postId + "/replies").cookie(session), Map.of("body", "   ")))
                     .andExpect(status().isBadRequest());
         }
-        mockMvc.perform(json(post("/api/posts/" + postId + "/replies").session(session), Map.of("body", "返事")))
+        mockMvc.perform(json(post("/api/posts/" + postId + "/replies").cookie(session), Map.of("body", "返事")))
                 .andExpect(status().isCreated());
     }
 
     @Test
     void replyBodyFollowsThePostRules() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         String postId = createPost(session, "投稿");
         assertEquals(400, reply(session, postId, "   ").getResponse().getStatus());
         assertEquals(400, reply(session, postId, null).getResponse().getStatus());
@@ -119,41 +119,41 @@ class ReplyControllerTest extends ApiTestSupport {
 
     @Test
     void replyingToAMissingPostIsNotFound() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         assertEquals(404, reply(session, "999999", "どこ？").getResponse().getStatus());
-        mockMvc.perform(get("/api/posts/999999/replies").session(session)).andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/posts/999999").session(session)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/posts/999999/replies").cookie(session)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/posts/999999").cookie(session)).andExpect(status().isNotFound());
     }
 
     @Test
     void onlyTheAuthorCanDeleteAReply() throws Exception {
-        MockHttpSession alice = registerAndLogin();
-        MockHttpSession bob = registerAndLogin();
+        Cookie alice = registerAndLogin();
+        Cookie bob = registerAndLogin();
         String postId = createPost(alice, "投稿");
         String replyId = body(reply(bob, postId, "ボブのリプライ")).get("id").asString();
 
         // 投稿の持ち主でも、他人のリプライは消せない
-        mockMvc.perform(delete("/api/replies/" + replyId).session(alice)).andExpect(status().isNotFound());
-        mockMvc.perform(delete("/api/replies/" + replyId).session(bob)).andExpect(status().isNoContent());
-        mockMvc.perform(delete("/api/replies/" + replyId).session(bob)).andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/posts/" + postId).session(alice)).andExpect(jsonPath("$.repliesCount").value(0));
+        mockMvc.perform(delete("/api/replies/" + replyId).cookie(alice)).andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/replies/" + replyId).cookie(bob)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/replies/" + replyId).cookie(bob)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/posts/" + postId).cookie(alice)).andExpect(jsonPath("$.repliesCount").value(0));
     }
 
     @Test
     void deletingAPostAlsoDeletesItsReplies() throws Exception {
-        MockHttpSession alice = registerAndLogin();
-        MockHttpSession bob = registerAndLogin();
+        Cookie alice = registerAndLogin();
+        Cookie bob = registerAndLogin();
         String postId = createPost(alice, "消す投稿");
         reply(bob, postId, "リプライ");
         long before = replyRepository.count();
 
-        mockMvc.perform(delete("/api/posts/" + postId).session(alice)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/posts/" + postId).cookie(alice)).andExpect(status().isNoContent());
         assertEquals(before - 1, replyRepository.count());
     }
 
     @Test
     void repliesAreRateLimitedSeparatelyFromPosts() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         String postId = createPost(session, "投稿");
         for (int i = 0; i < 10; i++) {
             assertEquals(201, reply(session, postId, "連投 " + i).getResponse().getStatus());
@@ -165,7 +165,7 @@ class ReplyControllerTest extends ApiTestSupport {
 
     @Test
     void repliesRequireLogin() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         String postId = createPost(session, "投稿");
         mockMvc.perform(get("/api/posts/" + postId + "/replies")).andExpect(status().isUnauthorized());
         mockMvc.perform(json(post("/api/posts/" + postId + "/replies"), Map.of("body", "x")))

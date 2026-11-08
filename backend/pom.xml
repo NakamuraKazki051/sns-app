@@ -63,6 +63,12 @@
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-crypto</artifactId>
     </dependency>
+    <!-- ログインの証明(JWT)に署名し、届いたものを確かめる -->
+    <dependency>
+      <groupId>com.nimbusds</groupId>
+      <artifactId>nimbus-jose-jwt</artifactId>
+      <version>10.9.1</version>
+    </dependency>
     <!-- 投稿の画像を AWS では S3 に置く(ローカルはディスクなので使わない)。非同期用の netty は使わないので外す -->
     <dependency>
       <groupId>software.amazon.awssdk</groupId>

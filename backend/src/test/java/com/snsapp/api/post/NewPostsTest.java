@@ -4,7 +4,7 @@ import com.snsapp.api.ApiTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
@@ -18,17 +18,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @Transactional
 class NewPostsTest extends ApiTestSupport {
 
-    private JsonNode newPosts(String path, MockHttpSession session, String after) throws Exception {
-        var result = perform(get(path).param("after", after).session(session));
+    private JsonNode newPosts(String path, Cookie session, String after) throws Exception {
+        var result = perform(get(path).param("after", after).cookie(session));
         assertEquals(200, result.getResponse().getStatus(), result.getResponse().getContentAsString());
         return body(result);
     }
 
     @Test
     void countsOnlyOthersPostsNewerThanAfter() throws Exception {
-        MockHttpSession alice = registerAndLogin();
-        MockHttpSession bob = registerAndLogin();
-        MockHttpSession carol = registerAndLogin();
+        Cookie alice = registerAndLogin();
+        Cookie bob = registerAndLogin();
+        Cookie carol = registerAndLogin();
         String top = createPost(alice, "ここまで見た");
 
         assertEquals(0, newPosts("/api/timeline/new", alice, top).get("count").asInt());
@@ -49,16 +49,16 @@ class NewPostsTest extends ApiTestSupport {
     @Test
     void homeCountsOnlyFolloweesPosts() throws Exception {
         String bobName = newUsername();
-        MockHttpSession alice = registerAndLogin();
-        MockHttpSession bob = registerAndLogin(bobName);
-        MockHttpSession stranger = registerAndLogin();
+        Cookie alice = registerAndLogin();
+        Cookie bob = registerAndLogin(bobName);
+        Cookie stranger = registerAndLogin();
         String top = createPost(alice, "ここまで見た");
 
         // まだ誰もフォローしていない
         createPost(bob, "フォロー前");
         assertEquals(0, newPosts("/api/timeline/home/new", alice, top).get("count").asInt());
 
-        perform(post("/api/users/" + bobName + "/follow").session(alice));
+        perform(post("/api/users/" + bobName + "/follow").cookie(alice));
         createPost(stranger, "フォローしていない人");
         createPost(alice, "自分");
         JsonNode result = newPosts("/api/timeline/home/new", alice, top);
@@ -68,11 +68,11 @@ class NewPostsTest extends ApiTestSupport {
 
     @Test
     void countStopsAtTheMax() throws Exception {
-        MockHttpSession alice = registerAndLogin();
+        Cookie alice = registerAndLogin();
         String top = createPost(alice, "ここまで見た");
         // 連投の制限にかからないよう、何人かで投稿する
         for (int i = 0; i <= PostController.NEW_POSTS_MAX / PostController.POSTS_PER_WINDOW; i++) {
-            MockHttpSession someone = registerAndLogin();
+            Cookie someone = registerAndLogin();
             for (int j = 0; j < PostController.POSTS_PER_WINDOW; j++) {
                 createPost(someone, "新着 " + i + "-" + j);
             }
@@ -84,8 +84,8 @@ class NewPostsTest extends ApiTestSupport {
 
     @Test
     void needsLoginAndAfter() throws Exception {
-        MockHttpSession alice = registerAndLogin();
+        Cookie alice = registerAndLogin();
         assertEquals(401, perform(get("/api/timeline/new").param("after", "0")).getResponse().getStatus());
-        assertEquals(400, perform(get("/api/timeline/new").session(alice)).getResponse().getStatus());
+        assertEquals(400, perform(get("/api/timeline/new").cookie(alice)).getResponse().getStatus());
     }
 }

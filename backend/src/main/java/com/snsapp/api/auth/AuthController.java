@@ -16,7 +16,7 @@ import com.snsapp.api.user.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -151,11 +151,11 @@ public class AuthController {
     }
 
     @Operation(operationId = "login", summary = "ログイン",
-            description = "成功すると Cookie(SNS_SESSION)が付く。1つのメールアドレスにつき5分に10回まで")
+            description = "成功すると Cookie(SNS_TOKEN、中身は JWT)が付く。1つのメールアドレスにつき5分に10回まで")
     @PublicApi
     @ApiErrors({400, 401, 403, 429})
     @PostMapping("/login")
-    public UserResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+    public UserResponse login(@Valid @RequestBody LoginRequest request, HttpServletResponse httpResponse) {
         String email = request.email().trim().toLowerCase();
         if (!rateLimiter.tryAcquire("login:" + email, LOGIN_ATTEMPTS, LOGIN_WINDOW)) {
             throw ApiException.tooManyRequests("ログインの試行回数が多すぎます。5分ほど待ってからもう一度お試しください");
@@ -170,24 +170,19 @@ public class AuthController {
         if (emailVerification.isRequired() && !user.isEmailVerified()) {
             throw ApiException.forbidden("メールアドレスの確認が済んでいません。届いたメールのリンクを開いてください");
         }
-        // ログイン前から存在するセッションIDを使い回さない(セッション固定攻撃対策)
-        if (httpRequest.getSession(false) != null) {
-            httpRequest.changeSessionId();
-        }
-        currentUser.signIn(httpRequest, user);
+        // ログインのたびに新しい JWT を作るので、ログイン前の値を使い回されることはない(セッション固定攻撃にならない)
+        currentUser.signIn(httpResponse, user);
         return UserResponse.from(user);
     }
 
     @Operation(operationId = "logout", summary = "ログアウト",
-            description = "ログインしていなくても 204 を返す")
+            description = "ブラウザの Cookie を消す。ログインしていなくても 204 を返す。"
+                    + "JWT そのものは取り消せないので、控えておいた値は期限(最後の操作から30分)まで使える")
     @PublicApi
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout(HttpServletRequest httpRequest) {
-        HttpSession session = httpRequest.getSession(false);
-        if (session != null) {
-            session.invalidate();
-        }
+    public void logout(HttpServletResponse httpResponse) {
+        currentUser.signOut(httpResponse);
     }
 
     @Operation(operationId = "getCurrentUser", summary = "ログイン中の自分の情報")

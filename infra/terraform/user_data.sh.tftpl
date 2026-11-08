@@ -51,6 +51,7 @@ umask 077
 cat > .env <<EOF
 DB_PASSWORD=$DB_PASSWORD
 ORIGIN_SECRET=${origin_secret}
+JWT_SECRET=${jwt_secret}
 MAIL_USERNAME=$MAIL_USERNAME
 MAIL_PASSWORD=$MAIL_PASSWORD
 EOF
@@ -73,6 +74,8 @@ services:
       IMAGES_S3_BUCKET: ${images_bucket}
       # ブラウザとは https でつなぐので、ログインの Cookie を https でしか送らないようにする
       SESSION_COOKIE_SECURE: "true"
+      # ログインの JWT に署名する鍵（Terraform が作る）
+      JWT_SECRET: $${JWT_SECRET}
       # CloudFront からは http で届くので、ブラウザの Origin（https）が別のサイトに見える。同じサイトだと教える
       APP_CORS_ALLOWED_ORIGINS: ${app_origin}
       # API 仕様書（Swagger UI）はローカルだけで使う。ここでは開けないようにする

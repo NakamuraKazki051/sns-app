@@ -28,6 +28,14 @@ spring:
 
 # 投稿の画像の置き場所。IMAGES_S3_BUCKET があれば S3(AWS)、無ければ dir のフォルダ(ローカル)
 app:
+  # ログインの証明(JWT)。HttpOnly の Cookie SNS_TOKEN に入れて渡す(docs/auth.md)
+  auth:
+    # 署名の鍵(32文字以上)。空ならアプリの起動ごとに作る(ローカル用。再起動するとログアウトになる)
+    jwt-secret: ${JWT_SECRET:}
+    # 有効期限。操作のたびに延びるので「最後の操作から30分」になる
+    token-ttl: 30m
+    # AWS(https)では true。ローカルは http なので false(true だとログインできない)
+    cookie-secure: ${SESSION_COOKIE_SECURE:false}
   # AWS だけで使う。CloudFront が付ける秘密のヘッダーの値(OriginSecretFilter)
   origin-secret: ${APP_ORIGIN_SECRET:}
   # 1つの IP から1時間に登録できる回数。ローカルと E2E テストでは止めない(AWS は5)
@@ -54,11 +62,3 @@ server:
   tomcat:
     # 大きすぎるファイルを断るとき、これより大きいと途中で接続を切る。ブラウザが 413 を受け取れるよう、既定の2MBより広げる
     max-swallow-size: 32MB
-  servlet:
-    session:
-      cookie:
-        name: SNS_SESSION
-        http-only: true
-        same-site: lax
-        # AWS(https)では true。ローカルは http なので false(true だとログインできない)
-        secure: ${SESSION_COOKIE_SECURE:false}
