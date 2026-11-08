@@ -8,18 +8,26 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
+import java.util.Base64;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -34,9 +42,13 @@ class AuthControllerTest extends ApiTestSupport {
     @Autowired
     private RateLimiter rateLimiter;
 
+    @Autowired
+    private TokenService tokenService;
+
     @AfterEach
     void resetClock() {
         rateLimiter.setClock(Clock.systemUTC());
+        tokenService.setClock(Clock.systemUTC());
     }
 
     @Test
@@ -53,28 +65,84 @@ class AuthControllerTest extends ApiTestSupport {
 
         MvcResult login = perform(json(post("/api/auth/login"), Map.of("email", "ALICE@example.com", "password", PASSWORD)));
         assertEquals(200, login.getResponse().getStatus());
-        MockHttpSession session = (MockHttpSession) login.getRequest().getSession();
+        Cookie token = login.getResponse().getCookie(CurrentUser.COOKIE_NAME);
+        // JWT は「ヘッダー.中身.署名」の3つ。JavaScript から読めず、30分で消える Cookie に入れる
+        assertEquals(3, token.getValue().split("\\.").length);
+        assertTrue(token.isHttpOnly());
+        assertEquals("/", token.getPath());
+        assertEquals(30 * 60, token.getMaxAge());
+        assertEquals("Lax", token.getAttribute("SameSite"));
+        assertFalse(token.getSecure());
 
-        mockMvc.perform(get("/api/auth/me").session(session))
+        mockMvc.perform(get("/api/auth/me").cookie(token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("alice_01"));
-        mockMvc.perform(post("/api/auth/logout").session(session))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(get("/api/auth/me").session(session))
-                .andExpect(status().isUnauthorized());
+        // ログアウトはブラウザの Cookie を消す(期限0の空の Cookie を返す)
+        Cookie cleared = perform(post("/api/auth/logout").cookie(token)).getResponse().getCookie(CurrentUser.COOKIE_NAME);
+        assertEquals("", cleared.getValue());
+        assertEquals(0, cleared.getMaxAge());
+        mockMvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
     }
 
     @Test
-    void loginRotatesExistingSessionId() throws Exception {
+    void eachLoginGetsANewToken() throws Exception {
         String username = newUsername();
-        registerAndLogin(username);
-        MockHttpSession preLoginSession = new MockHttpSession();
-        String idBeforeLogin = preLoginSession.getId();
+        Cookie first = registerAndLogin(username);
+        // 同じ秒の中だと同じ JWT になるので、時計を進める
+        tokenService.setClock(Clock.offset(Clock.systemUTC(), Duration.ofSeconds(5)));
+        assertNotEquals(first.getValue(), login(username).getValue());
+    }
 
-        MvcResult result = perform(json(post("/api/auth/login").session(preLoginSession),
-                Map.of("email", username + "@example.com", "password", PASSWORD)));
+    @Test
+    void brokenTamperedOrForeignTokensAreRejected() throws Exception {
+        Cookie mine = registerAndLogin();
+        String[] parts = mine.getValue().split("\\.");
+        String otherUser = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("{\"sub\":\"someone-else\",\"iat\":1,\"exp\":9999999999}".getBytes(StandardCharsets.UTF_8));
+        String noneHeader = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8));
+        TokenService otherKey = new TokenService("another-secret-that-is-at-least-32-bytes", Duration.ofMinutes(30));
+        List<String> rejected = List.of(
+                "not-a-jwt",
+                parts[0] + "." + otherUser + "." + parts[2],      // 中身を書き換えた
+                noneHeader + "." + parts[1] + ".",                // 署名なしを名乗る
+                otherKey.issue("someone-else"));                  // 別の鍵で署名した
+        for (String value : rejected) {
+            mockMvc.perform(get("/api/auth/me").cookie(new Cookie(CurrentUser.COOKIE_NAME, value)))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
+    void theTokenExpiresThirtyMinutesAfterTheLastRequest() throws Exception {
+        Instant start = Instant.now();
+        tokenService.setClock(Clock.fixed(start, ZoneOffset.UTC));
+        Cookie token = registerAndLogin();
+
+        // 29分後に操作すると、新しい JWT が届き、そこから30分使える
+        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(29)), ZoneOffset.UTC));
+        MvcResult used = perform(get("/api/timeline").cookie(token));
+        assertEquals(200, used.getResponse().getStatus());
+        Cookie renewed = used.getResponse().getCookie(CurrentUser.COOKIE_NAME);
+        assertNotNull(renewed);
+
+        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(31)), ZoneOffset.UTC));
+        mockMvc.perform(get("/api/timeline").cookie(token)).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("ログインの有効期限が切れました。もう一度ログインしてください"));
+        mockMvc.perform(get("/api/timeline").cookie(renewed)).andExpect(status().isOk());
+    }
+
+    @Test
+    void aFreshTokenIsNotReissuedOnEveryRequest() throws Exception {
+        Cookie token = registerAndLogin();
+        MvcResult result = perform(get("/api/timeline").cookie(token));
         assertEquals(200, result.getResponse().getStatus());
-        assertNotEquals(idBeforeLogin, result.getRequest().getSession().getId());
+        assertNull(result.getResponse().getCookie(CurrentUser.COOKIE_NAME));
+    }
+
+    @Test
+    void secretsShorterThan32BytesAreRefused() {
+        assertThrows(IllegalStateException.class, () -> new TokenService("short", Duration.ofMinutes(30)));
     }
 
     @Test
@@ -183,16 +251,18 @@ class AuthControllerTest extends ApiTestSupport {
     }
 
     @Test
-    void changingThePasswordLogsOutOtherSessionsButKeepsTheCurrentOne() throws Exception {
+    void changingThePasswordKeepsBothDevicesLoggedInUntilTheTokensExpire() throws Exception {
         String username = newUsername();
-        MockHttpSession pc = registerAndLogin(username);
-        MockHttpSession phone = login(username);
+        Cookie pc = registerAndLogin(username);
+        Cookie phone = login(username);
 
-        mockMvc.perform(json(put("/api/users/me").session(pc),
-                        Map.of("currentPassword", PASSWORD, "newPassword", "new-password-123")))
-                .andExpect(status().isOk());
-        mockMvc.perform(get("/api/timeline").session(pc)).andExpect(status().isOk());
-        mockMvc.perform(get("/api/timeline").session(phone)).andExpect(status().isUnauthorized());
+        MvcResult changed = perform(json(put("/api/users/me").cookie(pc),
+                Map.of("currentPassword", PASSWORD, "newPassword", "new-password-123")));
+        assertEquals(200, changed.getResponse().getStatus());
+        // 変えた本人には新しい JWT が届く。他の端末の JWT は取り消せない(サーバーは JWT を覚えていない)
+        assertNotNull(changed.getResponse().getCookie(CurrentUser.COOKIE_NAME));
+        mockMvc.perform(get("/api/timeline").cookie(pc)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/timeline").cookie(phone)).andExpect(status().isOk());
 
         mockMvc.perform(json(post("/api/auth/login"),
                         Map.of("email", username + "@example.com", "password", "new-password-123")))
@@ -203,11 +273,11 @@ class AuthControllerTest extends ApiTestSupport {
     void updateRequiresTheRightCurrentPasswordAFreeEmailAndALogin() throws Exception {
         String taken = newUsername();
         registerAndLogin(taken);
-        MockHttpSession session = registerAndLogin();
-        mockMvc.perform(json(put("/api/users/me").session(session),
+        Cookie session = registerAndLogin();
+        mockMvc.perform(json(put("/api/users/me").cookie(session),
                         Map.of("currentPassword", "wrong-password", "email", "x@example.com")))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(json(put("/api/users/me").session(session),
+        mockMvc.perform(json(put("/api/users/me").cookie(session),
                         Map.of("currentPassword", PASSWORD, "email", taken + "@example.com")))
                 .andExpect(status().isConflict());
         mockMvc.perform(json(put("/api/users/me"), Map.of("currentPassword", PASSWORD)))

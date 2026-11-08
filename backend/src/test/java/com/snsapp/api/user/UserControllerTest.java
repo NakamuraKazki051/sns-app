@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -32,13 +32,13 @@ class UserControllerTest extends ApiTestSupport {
     @Test
     void userPageShowsTheProfileAndPostCountWithoutTheEmail() throws Exception {
         String alice = newUsername();
-        MockHttpSession session = registerAndLogin(alice);
+        Cookie session = registerAndLogin(alice);
         for (int i = 0; i < 3; i++) {
             createPost(session, "アリス " + i);
         }
         createPost(registerAndLogin(), "他の人の投稿");
 
-        mockMvc.perform(get("/api/users/" + alice).session(session))
+        mockMvc.perform(get("/api/users/" + alice).cookie(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value(alice))
                 .andExpect(jsonPath("$.displayName").value("表示名 " + alice))
@@ -48,8 +48,8 @@ class UserControllerTest extends ApiTestSupport {
 
     @Test
     void usernameLookupIgnoresCase() throws Exception {
-        MockHttpSession session = registerAndLogin("CamelCase");
-        mockMvc.perform(get("/api/users/camelcase").session(session))
+        Cookie session = registerAndLogin("CamelCase");
+        mockMvc.perform(get("/api/users/camelcase").cookie(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("CamelCase"));
     }
@@ -57,7 +57,7 @@ class UserControllerTest extends ApiTestSupport {
     @Test
     void userPostsListOnlyThatUsersPostsNewestFirstPageByPage() throws Exception {
         String alice = newUsername();
-        MockHttpSession session = registerAndLogin(alice);
+        Cookie session = registerAndLogin(alice);
         User user = userRepository.findByUsername(alice).orElseThrow();
         for (int i = 0; i < PostController.PAGE_SIZE + 3; i++) {
             postRepository.save(new Post(user, "投稿 " + i));
@@ -72,10 +72,10 @@ class UserControllerTest extends ApiTestSupport {
 
     @Test
     void unknownOrMalformedUsernamesAreNotFound() throws Exception {
-        MockHttpSession session = registerAndLogin();
-        mockMvc.perform(get("/api/users/nobody_here").session(session)).andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/users/nobody_here/posts").session(session)).andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/users/{username}", "ハイフン").session(session)).andExpect(status().isNotFound());
+        Cookie session = registerAndLogin();
+        mockMvc.perform(get("/api/users/nobody_here").cookie(session)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/users/nobody_here/posts").cookie(session)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/users/{username}", "ハイフン").cookie(session)).andExpect(status().isNotFound());
     }
 
     @Test

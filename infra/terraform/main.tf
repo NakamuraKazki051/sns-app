@@ -76,7 +76,7 @@ resource "aws_iam_role_policy" "read_db_password" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
+      Effect = "Allow"
       Action = "ssm:GetParameter"
       Resource = [
         aws_ssm_parameter.db_password.arn,
@@ -107,8 +107,9 @@ resource "aws_instance" "app" {
     db_password_parameter = aws_ssm_parameter.db_password.name
     images_bucket         = data.aws_s3_bucket.images.bucket
     log_group             = aws_cloudwatch_log_group.app.name
-    app_origin           = "https://${aws_cloudfront_distribution.app.domain_name}"
+    app_origin            = "https://${aws_cloudfront_distribution.app.domain_name}"
     origin_secret         = random_password.origin_secret.result
+    jwt_secret            = random_password.jwt_secret.result
   })
 
   # CPUを使いすぎたときに追加料金が出る「unlimited」モードにしない

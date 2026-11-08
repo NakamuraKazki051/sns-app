@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,7 +37,7 @@ class PostImageFailureTest extends ApiTestSupport {
 
     @Test
     void imageStaysWhenTheResponseFailsAfterThePostIsSaved() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         ByteArrayOutputStream png = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(4, 3, BufferedImage.TYPE_INT_RGB), "png", png);
         long before = postRepository.count();
@@ -46,7 +46,7 @@ class PostImageFailureTest extends ApiTestSupport {
         try {
             mockMvc.perform(multipart("/api/posts")
                     .file(new MockMultipartFile("image", "photo", "image/png", png.toByteArray()))
-                    .session(session));
+                    .cookie(session));
         } catch (Exception expected) {
             // 応答には失敗する。確かめたいのは、そのあとに残るもの
         }

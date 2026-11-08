@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-/** @PublicApi の付いていない API は、入力の確認より先にログインを確かめる */
+/** @PublicApi の付いていない API は、入力の確認より先にログインを確かめ、古くなった JWT を作り直す */
 @Component
 public class LoginInterceptor implements HandlerInterceptor {
 
@@ -21,6 +21,8 @@ public class LoginInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         if (handler instanceof HandlerMethod method && !method.hasMethodAnnotation(PublicApi.class)) {
             currentUser.require(request);
+            // 応答の本文より先にヘッダーを書けるのはここ。操作が続いている間はログインが切れないようにする
+            currentUser.refreshIfOld(request, response);
         }
         return true;
     }

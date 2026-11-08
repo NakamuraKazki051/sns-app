@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
@@ -51,19 +51,19 @@ class PostImageTest extends ApiTestSupport {
         return out.toByteArray();
     }
 
-    private static MockMultipartHttpServletRequestBuilder postWithImage(MockHttpSession session, String text,
+    private static MockMultipartHttpServletRequestBuilder postWithImage(Cookie session, String text,
                                                                         byte[] data) {
         MockMultipartHttpServletRequestBuilder request = multipart("/api/posts");
         request.file(new MockMultipartFile("image", "photo", "image/png", data));
         if (text != null) {
             request.param("body", text);
         }
-        return (MockMultipartHttpServletRequestBuilder) request.session(session);
+        return (MockMultipartHttpServletRequestBuilder) request.cookie(session);
     }
 
     @Test
     void postWithImageReturnsItsSizeAndServesTheImage() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         byte[] png = image("png", 40, 30);
 
         MvcResult result = mockMvc.perform(postWithImage(session, "海に行った", png))
@@ -75,21 +75,21 @@ class PostImageTest extends ApiTestSupport {
         String id = body(result).get("id").asString();
         assertEquals("/api/posts/" + id + "/image", body(result).get("image").get("url").asString());
 
-        mockMvc.perform(get("/api/posts/" + id + "/image").session(session))
+        mockMvc.perform(get("/api/posts/" + id + "/image").cookie(session))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/png"))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(content().bytes(png));
 
         // タイムラインにも画像の情報が出る
-        JsonNode first = body(perform(get("/api/timeline").session(session))).get("posts").get(0);
+        JsonNode first = body(perform(get("/api/timeline").cookie(session))).get("posts").get(0);
         assertEquals(id, first.get("id").asString());
         assertEquals(40, first.get("image").get("width").asInt());
     }
 
     @Test
     void imageOnlyPostIsAllowedAndJpegWorks() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         mockMvc.perform(postWithImage(session, null, image("jpg", 8, 16)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.body").value(""))
@@ -101,16 +101,16 @@ class PostImageTest extends ApiTestSupport {
 
     @Test
     void postWithoutImageHasNullImage() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         String id = createPost(session, "文字だけ");
-        JsonNode post = body(perform(get("/api/posts/" + id).session(session)));
+        JsonNode post = body(perform(get("/api/posts/" + id).cookie(session)));
         assertTrue(post.get("image").isNull());
-        mockMvc.perform(get("/api/posts/" + id + "/image").session(session)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/posts/" + id + "/image").cookie(session)).andExpect(status().isNotFound());
     }
 
     @Test
     void rejectsFilesThatAreNotJpegOrPng() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         byte[] html = "<script>alert(1)</script>".getBytes(StandardCharsets.UTF_8);
         mockMvc.perform(postWithImage(session, "x", html)).andExpect(status().isBadRequest());
         mockMvc.perform(postWithImage(session, "x", image("gif", 4, 4))).andExpect(status().isBadRequest());
@@ -122,7 +122,7 @@ class PostImageTest extends ApiTestSupport {
 
     @Test
     void rejectsTooLargeFilesAndTooLongText() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         byte[] tooBig = Arrays.copyOf(image("png", 4, 4), PostImage.MAX_BYTES + 1);
         mockMvc.perform(postWithImage(session, "x", tooBig)).andExpect(status().isContentTooLarge());
         mockMvc.perform(postWithImage(session, "あ".repeat(141), image("png", 4, 4)))
@@ -131,7 +131,7 @@ class PostImageTest extends ApiTestSupport {
 
     @Test
     void rejectsHugeDimensions() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         // 1色だけなので、ファイルは小さくても縦が上限を超える
         byte[] tall = image("png", 1, PostImage.MAX_SIDE + 1);
         mockMvc.perform(postWithImage(session, "x", tall)).andExpect(status().isBadRequest());
@@ -139,33 +139,33 @@ class PostImageTest extends ApiTestSupport {
 
     @Test
     void deletingThePostDeletesTheImage() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         MvcResult result = mockMvc.perform(postWithImage(session, "消す", image("png", 4, 4))).andReturn();
         Long id = Long.valueOf(body(result).get("id").asString());
         String key = postRepository.findById(id).orElseThrow().getImage().key();
         assertNotNull(imageStorage.get(key));
 
-        mockMvc.perform(delete("/api/posts/" + id).session(session)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/posts/" + id).cookie(session)).andExpect(status().isNoContent());
         assertNull(imageStorage.get(key));
     }
 
     @Test
     void othersCannotDeleteTheImage() throws Exception {
-        MockHttpSession alice = registerAndLogin();
-        MockHttpSession bob = registerAndLogin();
+        Cookie alice = registerAndLogin();
+        Cookie bob = registerAndLogin();
         byte[] png = image("png", 4, 4);
         MvcResult result = mockMvc.perform(postWithImage(alice, "消させない", png)).andReturn();
         String id = body(result).get("id").asString();
 
-        mockMvc.perform(delete("/api/posts/" + id).session(bob)).andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/posts/" + id).cookie(bob)).andExpect(status().isNotFound());
         // 他の人も見られる
-        MvcResult image = perform(get("/api/posts/" + id + "/image").session(bob));
+        MvcResult image = perform(get("/api/posts/" + id + "/image").cookie(bob));
         assertArrayEquals(png, image.getResponse().getContentAsByteArray());
     }
 
     @Test
     void imageNeedsLogin() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         MvcResult result = mockMvc.perform(postWithImage(session, "x", image("png", 4, 4))).andReturn();
         String id = body(result).get("id").asString();
         mockMvc.perform(get("/api/posts/" + id + "/image")).andExpect(status().isUnauthorized());

@@ -31,6 +31,7 @@ HTTPS で守られるのは **ブラウザ〜CloudFront** の間です。CloudFr
 
 - `SESSION_COOKIE_SECURE=true`：ログインの Cookie に `Secure` を付ける
 - `APP_CORS_ALLOWED_ORIGINS=https://<CloudFront のドメイン>`：アプリには `http` で届くので、ブラウザの `Origin: https://…` が別のサイトに見える。これが無いと POST が 403 になる
+- `JWT_SECRET`：ログインの JWT に署名する鍵（64文字）。Terraform の `random_password` が作り、環境を作り直すたびに変わる（そのときは全員がログインし直す）
 
 - `APP_ORIGIN_SECRET`：CloudFront が付ける秘密のヘッダー（`X-Origin-Verify`）の値。無いリクエストは 403。他の人の CloudFront からは届かない。環境を作り直すたびに変わる
 - `REGISTER_PER_HOUR=5`：1つの IP から1時間に登録できる回数

@@ -4,7 +4,7 @@ import com.snsapp.api.ApiTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -33,11 +33,11 @@ class SearchAndBioTest extends ApiTestSupport {
         assertEquals(201, perform(json(post("/api/auth/register"), params)).getResponse().getStatus());
     }
 
-    private List<String> search(MockHttpSession session, String q) throws Exception {
+    private List<String> search(Cookie session, String q) throws Exception {
         List<String> all = new ArrayList<>();
         String cursor = null;
         while (true) {
-            MockHttpServletRequestBuilder request = get("/api/users").param("q", q).session(session);
+            MockHttpServletRequestBuilder request = get("/api/users").param("q", q).cookie(session);
             if (cursor != null) {
                 request.param("after", cursor);
             }
@@ -56,7 +56,7 @@ class SearchAndBioTest extends ApiTestSupport {
         register("a" + tag + "x", "誰か");
         register("b_other", "表示名に" + tag + "を含む");
         register("c" + tag.toUpperCase(), "大文字");
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
 
         // ユーザー名順。b_other は表示名で当たる
         assertEquals(List.of("a" + tag + "x", "b_other", "c" + tag.toUpperCase()), search(session, tag));
@@ -77,9 +77,9 @@ class SearchAndBioTest extends ApiTestSupport {
 
     @Test
     void likeWildcardsAreSearchedLiterally() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         // % や _ をそのまま渡しても、全員に当たったりしない
-        assertEquals(0, body(perform(get("/api/users").param("q", "%%%").session(session))).get("users").size());
+        assertEquals(0, body(perform(get("/api/users").param("q", "%%%").cookie(session))).get("users").size());
         String tag = UUID.randomUUID().toString().replace("-", "").substring(0, 6);
         register("u" + tag, "アンダースコア_" + tag);
         register("v" + tag, "アンダースコアX" + tag);
@@ -88,12 +88,12 @@ class SearchAndBioTest extends ApiTestSupport {
 
     @Test
     void emptyOrTooLongQueries() throws Exception {
-        MockHttpSession session = registerAndLogin();
-        mockMvc.perform(get("/api/users").param("q", "  ").session(session))
+        Cookie session = registerAndLogin();
+        mockMvc.perform(get("/api/users").param("q", "  ").cookie(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.users.length()").value(0))
                 .andExpect(jsonPath("$.nextCursor").isEmpty());
-        mockMvc.perform(get("/api/users").param("q", "x".repeat(51)).session(session))
+        mockMvc.perform(get("/api/users").param("q", "x".repeat(51)).cookie(session))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(get("/api/users").param("q", "x")).andExpect(status().isUnauthorized());
     }
@@ -101,31 +101,31 @@ class SearchAndBioTest extends ApiTestSupport {
     @Test
     void bioCanBeSetClearedAndIsShownOnTheUserPage() throws Exception {
         String name = newUsername();
-        MockHttpSession session = registerAndLogin(name);
+        Cookie session = registerAndLogin(name);
 
-        mockMvc.perform(json(patch("/api/me/profile").session(session), Map.of("bio", "  よろしく\nお願いします  ")))
+        mockMvc.perform(json(patch("/api/me/profile").cookie(session), Map.of("bio", "  よろしく\nお願いします  ")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.bio").value("よろしく\nお願いします"))
                 .andExpect(jsonPath("$.displayName").value("表示名 " + name));
-        mockMvc.perform(get("/api/users/" + name).session(registerAndLogin()))
+        mockMvc.perform(get("/api/users/" + name).cookie(registerAndLogin()))
                 .andExpect(jsonPath("$.bio").value("よろしく\nお願いします"));
 
         // 表示名だけ送ると、自己紹介はそのまま
-        mockMvc.perform(json(patch("/api/me/profile").session(session), Map.of("displayName", "新しい名前")))
+        mockMvc.perform(json(patch("/api/me/profile").cookie(session), Map.of("displayName", "新しい名前")))
                 .andExpect(jsonPath("$.bio").value("よろしく\nお願いします"));
 
-        mockMvc.perform(json(patch("/api/me/profile").session(session), Map.of("bio", "")))
+        mockMvc.perform(json(patch("/api/me/profile").cookie(session), Map.of("bio", "")))
                 .andExpect(jsonPath("$.bio").isEmpty());
     }
 
     @Test
     void bioIsLimitedTo160VisibleCharacters() throws Exception {
-        MockHttpSession session = registerAndLogin();
-        mockMvc.perform(json(patch("/api/me/profile").session(session), Map.of("bio", "👍🏽".repeat(160))))
+        Cookie session = registerAndLogin();
+        mockMvc.perform(json(patch("/api/me/profile").cookie(session), Map.of("bio", "👍🏽".repeat(160))))
                 .andExpect(status().isOk());
-        mockMvc.perform(json(patch("/api/me/profile").session(session), Map.of("bio", "あ".repeat(161))))
+        mockMvc.perform(json(patch("/api/me/profile").cookie(session), Map.of("bio", "あ".repeat(161))))
                 .andExpect(status().isBadRequest());
         Map<String, Object> nothing = new HashMap<>();
-        mockMvc.perform(json(patch("/api/me/profile").session(session), nothing)).andExpect(status().isOk());
+        mockMvc.perform(json(patch("/api/me/profile").cookie(session), nothing)).andExpect(status().isOk());
     }
 }

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -66,11 +66,11 @@ class PostControllerTest extends ApiTestSupport {
     @Test
     void postsAppearAtTheTopOfTheTimelineWithTheirAuthor() throws Exception {
         String username = newUsername();
-        MockHttpSession session = registerAndLogin(username);
+        Cookie session = registerAndLogin(username);
         createPost(session, "1つ目");
         String id = createPost(session, "2つ目\n改行あり");
 
-        mockMvc.perform(get("/api/timeline").session(session))
+        mockMvc.perform(get("/api/timeline").cookie(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.posts[0].id").value(id))
                 .andExpect(jsonPath("$.posts[0].body").value("2つ目\n改行あり"))
@@ -83,7 +83,7 @@ class PostControllerTest extends ApiTestSupport {
 
     @Test
     void bodyIs1To140CharactersCountedAsTheyLook() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         createPost(session, "あ".repeat(140));
         assertEquals(400, createPostResult(session, "あ".repeat(141)).getResponse().getStatus());
 
@@ -101,7 +101,7 @@ class PostControllerTest extends ApiTestSupport {
 
     @Test
     void rejectsEmptyWhitespaceOnlyAndHugeBodies() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         for (String bad : Arrays.asList("", "   \n  ", null)) {
             assertEquals(400, createPostResult(session, bad).getResponse().getStatus());
         }
@@ -111,7 +111,7 @@ class PostControllerTest extends ApiTestSupport {
 
     @Test
     void rejectedPostsDoNotUseUpTheLimit() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         for (int i = 0; i <= PostController.POSTS_PER_WINDOW; i++) {
             assertEquals(400, createPostResult(session, "   ").getResponse().getStatus());
         }
@@ -120,7 +120,7 @@ class PostControllerTest extends ApiTestSupport {
 
     @Test
     void moreThan10PostsAMinuteAreRefusedPerUser() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         for (int i = 0; i < PostController.POSTS_PER_WINDOW; i++) {
             createPost(session, "連投 " + i);
         }
@@ -138,7 +138,7 @@ class PostControllerTest extends ApiTestSupport {
     @Test
     void loadMorePagesThroughEveryPostWithoutDuplicatesOrGaps() throws Exception {
         String username = newUsername();
-        MockHttpSession session = registerAndLogin(username);
+        Cookie session = registerAndLogin(username);
         insertPosts(username, PostController.PAGE_SIZE * 2 + 5);
 
         List<String> ids = allPages("/api/timeline", session);
@@ -149,16 +149,16 @@ class PostControllerTest extends ApiTestSupport {
     @Test
     void postsMadeWhileReadingDoNotShiftTheNextPage() throws Exception {
         String username = newUsername();
-        MockHttpSession session = registerAndLogin(username);
+        Cookie session = registerAndLogin(username);
         insertPosts(username, PostController.PAGE_SIZE * 2);
 
-        JsonNode first = body(perform(get("/api/timeline").session(session)));
+        JsonNode first = body(perform(get("/api/timeline").cookie(session)));
         List<String> firstPage = ids(first);
         assertTrue(first.get("hasMore").asBoolean());
 
         // 1ページ目を読んでいる間に新しい投稿が増えても、続きは1ページ目の最後の次から
         insertPosts(username, 5);
-        JsonNode second = body(perform(get("/api/timeline").session(session).param("before", firstPage.getLast())));
+        JsonNode second = body(perform(get("/api/timeline").cookie(session).param("before", firstPage.getLast())));
         List<String> secondPage = ids(second);
         List<String> overlap = new ArrayList<>(firstPage);
         overlap.retainAll(secondPage);
@@ -169,45 +169,45 @@ class PostControllerTest extends ApiTestSupport {
 
     @Test
     void loadMoreStillWorksWhenTheLastShownPostWasDeleted() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         String oldest = createPost(session, "投稿 0");
         String middle = createPost(session, "投稿 1");
         createPost(session, "投稿 2");
-        mockMvc.perform(delete("/api/posts/" + middle).session(session)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/posts/" + middle).cookie(session)).andExpect(status().isNoContent());
 
-        JsonNode page = body(perform(get("/api/timeline").session(session).param("before", middle)));
+        JsonNode page = body(perform(get("/api/timeline").cookie(session).param("before", middle)));
         assertEquals(List.of(oldest), ids(page));
     }
 
     @Test
     void hasMoreIsFalseWhenExactlyOnePageIsLeft() throws Exception {
         String username = newUsername();
-        MockHttpSession session = registerAndLogin(username);
+        Cookie session = registerAndLogin(username);
         insertPosts(username, PostController.PAGE_SIZE);
-        mockMvc.perform(get("/api/timeline").session(session))
+        mockMvc.perform(get("/api/timeline").cookie(session))
                 .andExpect(jsonPath("$.posts.length()").value(PostController.PAGE_SIZE))
                 .andExpect(jsonPath("$.hasMore").value(false));
     }
 
     @Test
     void invalidBeforeIsABadRequest() throws Exception {
-        MockHttpSession session = registerAndLogin();
-        mockMvc.perform(get("/api/timeline").session(session).param("before", "abc"))
+        Cookie session = registerAndLogin();
+        mockMvc.perform(get("/api/timeline").cookie(session).param("before", "abc"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void onlyTheAuthorCanDeleteAPost() throws Exception {
-        MockHttpSession author = registerAndLogin();
+        Cookie author = registerAndLogin();
         String id = createPost(author, "消す投稿");
 
         // 他人の投稿は存在しない扱い
-        mockMvc.perform(delete("/api/posts/" + id).session(registerAndLogin())).andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/posts/" + id).cookie(registerAndLogin())).andExpect(status().isNotFound());
         assertTrue(postRepository.existsById(Long.valueOf(id)));
 
-        mockMvc.perform(delete("/api/posts/" + id).session(author)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/posts/" + id).cookie(author)).andExpect(status().isNoContent());
         assertFalse(postRepository.existsById(Long.valueOf(id)));
-        mockMvc.perform(delete("/api/posts/" + id).session(author)).andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/posts/" + id).cookie(author)).andExpect(status().isNotFound());
     }
 
     @Test
@@ -219,10 +219,10 @@ class PostControllerTest extends ApiTestSupport {
 
     @Test
     void bodiesAreReturnedAsPlainText() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         String text = "<script>alert(\"x\")</script> & <b>太字</b>";
         createPost(session, text);
-        mockMvc.perform(get("/api/timeline").session(session))
+        mockMvc.perform(get("/api/timeline").cookie(session))
                 .andExpect(jsonPath("$.posts[0].body").value(text));
     }
 }

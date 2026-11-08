@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
@@ -53,13 +53,13 @@ class MeControllerTest extends ApiTestSupport {
     }
 
     /** multipart() は POST になるので、PUT に変える */
-    private static MockMultipartHttpServletRequestBuilder putIcon(MockHttpSession session, String contentType,
+    private static MockMultipartHttpServletRequestBuilder putIcon(Cookie session, String contentType,
                                                                   byte[] data) {
         MockMultipartHttpServletRequestBuilder request = multipart("/api/me/icon");
         if (data != null) {
             request.file(new MockMultipartFile("icon", "icon", contentType, data));
         }
-        request.session(session).with(r -> {
+        request.cookie(session).with(r -> {
             r.setMethod("PUT");
             return r;
         });
@@ -69,35 +69,35 @@ class MeControllerTest extends ApiTestSupport {
     @Test
     void displayNameCanBeChangedAndIsStripped() throws Exception {
         String alice = newUsername();
-        MockHttpSession session = registerAndLogin(alice);
+        Cookie session = registerAndLogin(alice);
         createPost(session, "こんにちは");
 
-        mockMvc.perform(json(patch("/api/me/profile").session(session), Map.of("displayName", "  アリス  ")))
+        mockMvc.perform(json(patch("/api/me/profile").cookie(session), Map.of("displayName", "  アリス  ")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.displayName").value("アリス"));
 
-        mockMvc.perform(get("/api/users/" + alice).session(session))
+        mockMvc.perform(get("/api/users/" + alice).cookie(session))
                 .andExpect(jsonPath("$.displayName").value("アリス"));
-        mockMvc.perform(get("/api/timeline").session(session))
+        mockMvc.perform(get("/api/timeline").cookie(session))
                 .andExpect(jsonPath("$.posts[0].user.displayName").value("アリス"));
     }
 
     @Test
     void blankOrTooLongDisplayNamesAreRejected() throws Exception {
-        MockHttpSession session = registerAndLogin();
-        mockMvc.perform(json(patch("/api/me/profile").session(session), Map.of("displayName", "   ")))
+        Cookie session = registerAndLogin();
+        mockMvc.perform(json(patch("/api/me/profile").cookie(session), Map.of("displayName", "   ")))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(json(patch("/api/me/profile").session(session), Map.of("displayName", "あ".repeat(51))))
+        mockMvc.perform(json(patch("/api/me/profile").cookie(session), Map.of("displayName", "あ".repeat(51))))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(json(patch("/api/me/profile").session(session), Map.of("displayName", "あ".repeat(50))))
+        mockMvc.perform(json(patch("/api/me/profile").cookie(session), Map.of("displayName", "あ".repeat(50))))
                 .andExpect(status().isOk());
     }
 
     @Test
     void iconCanBeSetReplacedAndRemoved() throws Exception {
         String alice = newUsername();
-        MockHttpSession session = registerAndLogin(alice);
-        MockHttpSession bob = registerAndLogin();
+        Cookie session = registerAndLogin(alice);
+        Cookie bob = registerAndLogin();
         createPost(session, "アイコンつき");
 
         MvcResult first = mockMvc.perform(putIcon(session, "image/png", PNG)).andReturn();
@@ -105,35 +105,35 @@ class MeControllerTest extends ApiTestSupport {
         String firstVersion = body(first).get("iconUpdatedAt").asString();
 
         // 他の人からも見える。投稿とプロフィールの応答には更新時刻だけが入る
-        mockMvc.perform(get("/api/users/" + alice + "/icon").session(bob))
+        mockMvc.perform(get("/api/users/" + alice + "/icon").cookie(bob))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/png"))
                 .andExpect(header().string("Cache-Control", startsWith("max-age=")))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(content().bytes(PNG));
-        mockMvc.perform(get("/api/users/" + alice).session(bob))
+        mockMvc.perform(get("/api/users/" + alice).cookie(bob))
                 .andExpect(jsonPath("$.iconUpdatedAt").value(firstVersion));
-        mockMvc.perform(get("/api/timeline").session(bob))
+        mockMvc.perform(get("/api/timeline").cookie(bob))
                 .andExpect(jsonPath("$.posts[0].user.iconUpdatedAt").value(firstVersion));
 
         Thread.sleep(5);
         MvcResult second = mockMvc.perform(putIcon(session, "image/jpeg", JPEG)).andReturn();
         assertEquals(200, second.getResponse().getStatus());
         assertNotEquals(firstVersion, body(second).get("iconUpdatedAt").asString(), "変更したら URL の ?v= も変わる");
-        MvcResult image = perform(get("/api/users/" + alice + "/icon").session(bob));
+        MvcResult image = perform(get("/api/users/" + alice + "/icon").cookie(bob));
         assertEquals("image/jpeg", image.getResponse().getContentType());
         assertArrayEquals(JPEG, image.getResponse().getContentAsByteArray());
 
-        mockMvc.perform(delete("/api/me/icon").session(session))
+        mockMvc.perform(delete("/api/me/icon").cookie(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.iconUpdatedAt").isEmpty());
-        mockMvc.perform(get("/api/users/" + alice + "/icon").session(bob)).andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/auth/me").session(session)).andExpect(jsonPath("$.iconUpdatedAt").isEmpty());
+        mockMvc.perform(get("/api/users/" + alice + "/icon").cookie(bob)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/auth/me").cookie(session)).andExpect(jsonPath("$.iconUpdatedAt").isEmpty());
     }
 
     @Test
     void nonImageFilesAreRejectedEvenWithAnImageContentType() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         byte[] html = "<script>alert(1)</script>".getBytes(StandardCharsets.UTF_8);
         mockMvc.perform(putIcon(session, "image/png", html)).andExpect(status().isBadRequest());
         mockMvc.perform(putIcon(session, "image/gif", "GIF89a....".getBytes(StandardCharsets.UTF_8)))
@@ -143,11 +143,11 @@ class MeControllerTest extends ApiTestSupport {
 
     @Test
     void wrongRequestFormatsAreNotServerErrors() throws Exception {
-        MockHttpSession session = registerAndLogin();
-        mockMvc.perform(put("/api/me/icon").session(session).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        Cookie session = registerAndLogin();
+        mockMvc.perform(put("/api/me/icon").cookie(session).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnsupportedMediaType());
         // multipart と名乗っているのに中身が読めない
-        mockMvc.perform(put("/api/me/icon").session(session).contentType(MediaType.MULTIPART_FORM_DATA))
+        mockMvc.perform(put("/api/me/icon").cookie(session).contentType(MediaType.MULTIPART_FORM_DATA))
                 .andExpect(status().isBadRequest());
     }
 
@@ -160,7 +160,7 @@ class MeControllerTest extends ApiTestSupport {
 
     @Test
     void iconsOverOneMegabyteAreRejected() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         byte[] tooBig = Arrays.copyOf(PNG, UserIcon.MAX_BYTES + 1);
         mockMvc.perform(putIcon(session, "image/png", tooBig)).andExpect(status().isContentTooLarge());
 
@@ -170,7 +170,7 @@ class MeControllerTest extends ApiTestSupport {
 
     @Test
     void missingIconPartIsABadRequest() throws Exception {
-        MockHttpSession session = registerAndLogin();
+        Cookie session = registerAndLogin();
         mockMvc.perform(putIcon(session, null, null)).andExpect(status().isBadRequest());
     }
 
@@ -179,7 +179,7 @@ class MeControllerTest extends ApiTestSupport {
         String alice = newUsername();
         registerAndLogin(alice);
         mockMvc.perform(json(patch("/api/me/profile"), Map.of("displayName", "x"))).andExpect(status().isUnauthorized());
-        mockMvc.perform(putIcon(new MockHttpSession(), "image/png", PNG)).andExpect(status().isUnauthorized());
+        mockMvc.perform(putIcon(new Cookie("SNS_TOKEN", "not-a-jwt"), "image/png", PNG)).andExpect(status().isUnauthorized());
         mockMvc.perform(delete("/api/me/icon")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/users/" + alice + "/icon")).andExpect(status().isUnauthorized());
     }

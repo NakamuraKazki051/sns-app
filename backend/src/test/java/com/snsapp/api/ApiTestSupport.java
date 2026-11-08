@@ -1,8 +1,9 @@
 package com.snsapp.api;
 
+import com.snsapp.api.auth.CurrentUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpSession;
+import jakarta.servlet.http.Cookie;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -16,11 +17,12 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
-/** API 経由でユーザー・投稿を作るヘルパー。別ユーザーとして操作したいときは、別のセッションを渡す */
+/** API 経由でユーザー・投稿を作るヘルパー。別ユーザーとして操作したいときは、その人のログインの Cookie(JWT)を渡す */
 public abstract class ApiTestSupport {
 
     protected static final String PASSWORD = "correcthorsebattery";
@@ -56,34 +58,36 @@ public abstract class ApiTestSupport {
         return objectMapper.readTree(result.getResponse().getContentAsString());
     }
 
-    protected MockHttpSession login(String username) throws Exception {
+    protected Cookie login(String username) throws Exception {
         MvcResult result = perform(json(post("/api/auth/login"),
                 Map.of("email", username + "@example.com", "password", PASSWORD)));
         assertEquals(200, result.getResponse().getStatus(), result.getResponse().getContentAsString());
-        return (MockHttpSession) result.getRequest().getSession();
+        Cookie token = result.getResponse().getCookie(CurrentUser.COOKIE_NAME);
+        assertNotNull(token, "ログインの応答に Cookie が無い");
+        return token;
     }
 
-    protected MockHttpSession registerAndLogin(String username) throws Exception {
+    protected Cookie registerAndLogin(String username) throws Exception {
         MvcResult result = perform(json(post("/api/auth/register"), registerParams(username)));
         assertEquals(201, result.getResponse().getStatus(), result.getResponse().getContentAsString());
         return login(username);
     }
 
-    protected MockHttpSession registerAndLogin() throws Exception {
+    protected Cookie registerAndLogin() throws Exception {
         return registerAndLogin(newUsername());
     }
 
     /** 投稿して ID を返す */
-    protected String createPost(MockHttpSession session, String text) throws Exception {
-        MvcResult result = perform(json(post("/api/posts").session(session), Map.of("body", text)));
+    protected String createPost(Cookie session, String text) throws Exception {
+        MvcResult result = perform(json(post("/api/posts").cookie(session), Map.of("body", text)));
         assertEquals(201, result.getResponse().getStatus(), result.getResponse().getContentAsString());
         return body(result).get("id").asString();
     }
 
-    protected MvcResult createPostResult(MockHttpSession session, Object text) throws Exception {
+    protected MvcResult createPostResult(Cookie session, Object text) throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("body", text);
-        return perform(json(post("/api/posts").session(session), params));
+        return perform(json(post("/api/posts").cookie(session), params));
     }
 
     protected static List<String> ids(JsonNode page) {
@@ -93,11 +97,11 @@ public abstract class ApiTestSupport {
     }
 
     /** 「もっと見る」を最後までたどって(前のページの nextCursor を before に渡す)、全ページの投稿 ID を返す */
-    protected List<String> allPages(String path, MockHttpSession session) throws Exception {
+    protected List<String> allPages(String path, Cookie session) throws Exception {
         List<String> all = new ArrayList<>();
         String before = null;
         while (true) {
-            MockHttpServletRequestBuilder request = get(path).session(session);
+            MockHttpServletRequestBuilder request = get(path).cookie(session);
             if (before != null) {
                 request.param("before", before);
             }
