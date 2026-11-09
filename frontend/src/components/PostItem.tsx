@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { api, errorMessage } from "../api";
 import { useMe } from "../auth";
 import { useFeedback } from "../feedback";
-import { fullTime, relativeTime } from "../text";
+import { countChars, fullTime, POST_MAX, relativeTime } from "../text";
 import type { Post } from "../types";
 import { Avatar } from "./Avatar";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -28,6 +28,9 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true, isNew
   const [reposting, setReposting] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [viewing, setViewing] = useState(false);
+  // 本文を直している途中の文(F-19)。null なら直していない
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const closeViewer = useCallback(() => setViewing(false), []);
   const detailPath = `/posts/${post.id}`;
   const mine = post.user.id === me.id;
@@ -72,6 +75,30 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true, isNew
     }
   }
 
+  async function saveEdit() {
+    if (draft === null || saving) return;
+    const text = draft.trim();
+    if (text === "" && !post.image) {
+      showError("投稿の本文を入力してください");
+      return;
+    }
+    if (countChars(text) > POST_MAX) {
+      showError(`投稿は${POST_MAX}文字以内で入力してください`);
+      return;
+    }
+    setSaving(true);
+    try {
+      const saved = await api<Post>(`/api/posts/${post.id}`, { method: "PATCH", body: { body: draft } });
+      // リポストとして出している行なら、リポストした人の表示はそのまま残す
+      onChange({ ...saved, repostedBy: post.repostedBy });
+      setDraft(null);
+    } catch (e) {
+      showError(errorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   // 本文の余白を押したら詳細へ。ただし文字を選んでいるとき(コピーしたいとき)は移らない
   function openDetail() {
     if (linkToDetail && !window.getSelection()?.toString()) navigate(detailPath);
@@ -107,9 +134,31 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true, isNew
           <Link to={detailPath} className="sub" title={fullTime(post.createdAt)} onClick={(e) => e.stopPropagation()}>
             <time dateTime={post.createdAt}>{relativeTime(post.createdAt)}</time>
           </Link>
+          {post.editedAt && (
+            <span className="sub" title={`${fullTime(post.editedAt)} に編集`}>
+              (編集済み)
+            </span>
+          )}
         </div>
-        {/* 本文は文字として出す(HTML として解釈しない)。改行は CSS の pre-wrap でそのまま見せる */}
-        {post.body !== "" && <p className="post-text">{post.body}</p>}
+        {draft !== null ? (
+          <div className="post-edit" onClick={(e) => e.stopPropagation()}>
+            <textarea aria-label="投稿を編集" value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus />
+            <div className="post-edit-actions">
+              <span className={countChars(draft.trim()) > POST_MAX ? "counter over" : "counter"}>
+                {POST_MAX - countChars(draft.trim())}
+              </span>
+              <button type="button" className="button" disabled={saving} onClick={() => setDraft(null)}>
+                キャンセル
+              </button>
+              <button type="button" className="button primary" disabled={saving} onClick={saveEdit}>
+                保存する
+              </button>
+            </div>
+          </div>
+        ) : (
+          // 本文は文字として出す(HTML として解釈しない)。改行は CSS の pre-wrap でそのまま見せる
+          post.body !== "" && <p className="post-text">{post.body}</p>
+        )}
         {post.image && (
           // 幅と高さを先に渡して枠を取っておく(読み込んだときに下の投稿がずれない)。押すと大きく見られる
           <button
@@ -158,6 +207,11 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true, isNew
           >
             {post.likedByMe ? "♥" : "♡"} <span>{post.likesCount}</span>
           </button>
+          {mine && draft === null && (
+            <button type="button" className="action" onClick={() => setDraft(post.body)}>
+              編集
+            </button>
+          )}
           {mine && (
             <button type="button" className="action delete" onClick={() => setConfirming(true)}>
               削除

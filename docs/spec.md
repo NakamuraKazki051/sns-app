@@ -24,6 +24,7 @@
 | F-16 | 新着のお知らせ（「↑ 新しい投稿 N件」） | 済（2026-11-04 追加） |
 | F-17 | アカウントの削除 | 済（2026-11-09 追加） |
 | F-18 | パスワードの再設定 | 済（2026-11-09 追加） |
+| F-19 | 投稿の編集 | 済（2026-11-09 追加） |
 
 ## 2. 共通の決まり
 
@@ -166,6 +167,7 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | GET | `/api/timeline/new?after=<投稿 ID>` | ― | `{ count, users: PublicUser[] }`（after より新しい他の人の投稿の数。100で止める。users は新しい順に重複なしで3人まで） | 400（after が無い） |
 | GET | `/api/timeline/home/new?after=<投稿 ID>` | ― | 同上（フォロー中の人の投稿だけ） | 400 |
 | DELETE | `/api/posts/{id}` | ― | 204。リプライ・いいね・リポストも消える | 404（無い・他人の投稿） |
+| PATCH | `/api/posts/{id}` | `{ "body" }`（F-19） | 200 と投稿（`editedAt` が入る）。同じ本文なら何も変えない | 400（空・140字超え。画像のある投稿は空でよい）、404（無い・他人の投稿）、429（投稿と合わせて1分に10回） |
 | POST | `/api/posts/{id}/like` | ― | `{ liked: true, likesCount }` | 404 |
 | DELETE | `/api/posts/{id}/like` | ― | `{ liked: false, likesCount }` | 404 |
 | POST | `/api/posts/{id}/repost` | ― | `{ reposted: true, repostsCount }` | 400（自分の投稿）、404 |
@@ -216,7 +218,7 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | revoked_sessions | session_id（主キー、JWT の sid）, expires_at | ログアウトしたログイン。期限を過ぎた行はログアウトのたびに消す（`V5__token_revocation.sql`） |
 | password_resets | token_hash（主キー、SHA-256）, user_id, expires_at | (user_id)。アカウントを消すと一緒に消える（`V6__password_resets.sql`） |
 | user_icons | user_id（主キー）, content_type, data（MEDIUMBLOB）, updated_at | 1人1枚 |
-| posts | id（連番）, user_id, body, created_at | (user_id, id) |
+| posts | id（連番）, user_id, body, created_at, image_*, edited_at | (user_id, id)。edited_at は本文を最後に直した時刻（`V7__post_edits.sql`） |
 | replies | id（連番）, post_id, user_id, body, created_at | (post_id, id)。投稿を消すと DB が一緒に消す（ON DELETE CASCADE） |
 | likes | id, user_id, post_id, created_at | (user_id, post_id) に一意制約、(post_id)。投稿を消すと一緒に消える |
 | follows | id（連番）, follower_id, followee_id, created_at | (follower_id, followee_id) に一意制約、(followee_id, id) |

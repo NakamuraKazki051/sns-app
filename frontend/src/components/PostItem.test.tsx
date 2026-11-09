@@ -103,3 +103,47 @@ describe("PostItem の画像", () => {
     expect(screen.getByAltText("ボブさんの画像")).toBeTruthy();
   });
 });
+
+describe("PostItem の編集(F-19)", () => {
+  it("自分の投稿だけ「編集」が出る", () => {
+    renderItem(post());
+    expect(screen.queryByRole("button", { name: "編集" })).toBeNull();
+  });
+
+  it("直した本文を送り、返ってきた投稿で表示を替える", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify(post({ user: ME, body: "直した", editedAt: "2026-11-09T00:00:00Z" })), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onChange = renderItem(post({ user: ME, body: "直す前" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "編集" }));
+    const box = screen.getByRole("textbox", { name: "投稿を編集" });
+    expect((box as HTMLTextAreaElement).value).toBe("直す前");
+    await userEvent.clear(box);
+    await userEvent.type(box, "直した");
+    await userEvent.click(screen.getByRole("button", { name: "保存する" }));
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/posts/10");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ body: "直した" });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ body: "直した", editedAt: "2026-11-09T00:00:00Z" }));
+    expect(screen.queryByRole("textbox", { name: "投稿を編集" })).toBeNull();
+  });
+
+  it("キャンセルすると送らずに元に戻る", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderItem(post({ user: ME }));
+    await userEvent.click(screen.getByRole("button", { name: "編集" }));
+    await userEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByText("こんにちは")).toBeTruthy();
+  });
+
+  it("直した投稿には「編集済み」を出す", () => {
+    renderItem(post({ editedAt: "2026-11-09T00:00:00Z" }));
+    expect(screen.getByText("(編集済み)")).toBeTruthy();
+  });
+});

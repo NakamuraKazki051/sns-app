@@ -480,6 +480,56 @@ paths:
       summary: 投稿を1件読む
       tags:
       - 投稿
+    patch:
+      description: 自分の投稿だけ直せる。画像はそのまま。本文は140字まで、画像のある投稿なら空でもよい。直すと editedAt が入り、画面に「編集済み」と出る。投稿と合わせて1人1分に10回まで
+      operationId: editPost
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      summary: 投稿の本文を直す
+      tags:
+      - 投稿
   /api/posts/{id}/image:
     get:
       operationId: getPostImage
@@ -1367,6 +1417,12 @@ components:
           minLength: 0
       required:
       - password
+    EditRequest:
+      type: object
+      properties:
+        body:
+          type: string
+          description: 新しい本文。140字まで。画像のある投稿なら空でもよい
     FollowResponse:
       type: object
       properties:
@@ -1464,6 +1520,12 @@ components:
         createdAt:
           type: string
           format: date-time
+        editedAt:
+          type:
+          - string
+          - "null"
+          format: date-time
+          description: 本文を最後に直した時刻。直していなければ null
         id:
           type: string
           description: 投稿 ID(文字列)

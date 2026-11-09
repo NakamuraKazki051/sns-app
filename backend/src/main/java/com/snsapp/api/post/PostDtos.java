@@ -30,7 +30,12 @@ public class PostDtos {
                                PublicUser user, long likesCount, long repliesCount, boolean likedByMe,
                                long repostsCount, boolean repostedByMe,
                                @Schema(types = {"object", "null"}, description = "リポストした人。リポストとして出すときだけ入り、それ以外は null") PublicUser repostedBy,
-                               @Schema(types = {"object", "null"}, description = "画像。無ければ null") ImageResponse image) {
+                               @Schema(types = {"object", "null"}, description = "画像。無ければ null") ImageResponse image,
+                               @Schema(types = {"string", "null"}, format = "date-time",
+                                       description = "本文を最後に直した時刻。直していなければ null") Instant editedAt) {
+    }
+
+    public record EditRequest(@Schema(description = "新しい本文。140字まで。画像のある投稿なら空でもよい") String body) {
     }
 
     /** 投稿の画像(無ければ PostResponse.image が null)。幅と高さで、読み込む前に枠の形を決められる */

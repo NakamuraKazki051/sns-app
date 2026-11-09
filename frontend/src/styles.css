@@ -141,6 +141,9 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: tr
 .post-meta .name { font-weight: 700; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
 .post-meta .sub { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 .post-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.post-edit { display: flex; flex-direction: column; gap: 8px; margin: 4px 0; }
+.post-edit textarea { resize: vertical; min-height: 72px; }
+.post-edit-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
 .post-delete { margin-left: auto; }
 .post-delete:hover { color: var(--danger); }
 
