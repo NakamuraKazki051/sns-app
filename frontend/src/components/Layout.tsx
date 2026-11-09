@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router";
 import { useAuth, useMe } from "../auth";
+import { useUnreadNotifications } from "../notifications";
+import type { NotificationsOutlet } from "../pages/NotificationsPage";
 
 type Theme = "light" | "dark";
 
@@ -17,6 +19,8 @@ export function Layout() {
   const { logout } = useAuth();
   const [theme, setTheme] = useState<Theme>(() => document.documentElement.dataset.theme as Theme);
   const headerRef = useRef<HTMLElement>(null);
+  const unread = useUnreadNotifications();
+  const outletContext = useMemo<NotificationsOutlet>(() => ({ onNotificationsRead: unread.reset }), [unread.reset]);
 
   // メニューは幅によって2〜3行に折り返す。タブなどをヘッダーのすぐ下に固定できるよう、実際の高さを CSS に渡す(切り捨てて、隙間が空かないよう少し重ねる)
   useEffect(() => {
@@ -56,6 +60,14 @@ export function Layout() {
             <NavLink to="/search" className={navClass}>
               検索
             </NavLink>
+            <NavLink
+              to="/notifications"
+              className={navClass}
+              aria-label={unread.count > 0 ? `通知(未読 ${unread.count}件)` : "通知"}
+            >
+              通知
+              {unread.count > 0 && <span className="nav-badge">{unread.count > 99 ? "99+" : unread.count}</span>}
+            </NavLink>
             <NavLink to={`/@${me.username}`} className={navClass}>
               プロフィール
             </NavLink>
@@ -77,7 +89,7 @@ export function Layout() {
         </div>
       </header>
       <main className="container">
-        <Outlet />
+        <Outlet context={outletContext} />
       </main>
     </>
   );

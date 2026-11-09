@@ -2,6 +2,8 @@ package com.snsapp.api.post;
 
 import com.snsapp.api.auth.CurrentUser;
 import com.snsapp.api.block.Visibility;
+import com.snsapp.api.notification.Notification;
+import com.snsapp.api.notification.NotificationService;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.ImageFiles;
@@ -89,11 +91,13 @@ public class PostController {
     private final RateLimiter rateLimiter;
     private final ImageStorage imageStorage;
     private final Visibility visibility;
+    private final NotificationService notifications;
 
     public PostController(PostRepository postRepository, PostLikeRepository likeRepository,
                           FollowRepository followRepository, UserRepository userRepository, PostViews postViews,
                           CurrentUser currentUser, RateLimiter rateLimiter, ImageStorage imageStorage,
-                          Visibility visibility) {
+                          Visibility visibility, NotificationService notifications) {
+        this.notifications = notifications;
         this.visibility = visibility;
         this.postRepository = postRepository;
         this.likeRepository = likeRepository;
@@ -342,6 +346,7 @@ public class PostController {
         if (!likeRepository.existsByUserIdAndPostId(userId, id)) {
             try {
                 likeRepository.saveAndFlush(new PostLike(userRepository.getReferenceById(userId), post));
+                notifications.postActivity(Notification.Type.LIKE, userId, post);
             } catch (DataIntegrityViolationException e) {
                 // 上の確認と保存の間に同じいいねが入った(連打)。一意制約で弾かれたので、いいね済みとして扱う
             }
@@ -356,8 +361,9 @@ public class PostController {
     @DeleteMapping("/posts/{id}/like")
     public LikeResponse unlike(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        findPost(id, userId);
+        Post post = findPost(id, userId);
         likeRepository.deleteByUserIdAndPostId(userId, id);
+        notifications.retract(Notification.Type.LIKE, userId, post.getUser().getId(), id);
         return new LikeResponse(false, likeRepository.countByPostId(id));
     }
 

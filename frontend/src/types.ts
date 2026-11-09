@@ -74,3 +74,13 @@ export type Reply = {
 };
 
 export type ReplyPage = { replies: Reply[]; hasMore: boolean };
+
+/** 通知1件(F-21)。post はどの投稿への反応か(フォローでは null) */
+export type Notification = {
+  id: string;
+  type: "LIKE" | "REPLY" | "REPOST" | "FOLLOW";
+  actor: PublicUser;
+  post: { id: string; body: string } | null;
+  createdAt: string;
+  read: boolean;
+};

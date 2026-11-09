@@ -200,3 +200,24 @@ test("ミュートするとタイムラインから消え、ブロックする�
   await other.reload();
   await expect(other.getByRole("heading", { name: mia.displayName })).toBeVisible();
 });
+
+test("いいね・フォローされると通知の数が出て、開くと一覧に出て既読になる", async ({ session }) => {
+  const olga = newAccount("olga");
+  const pete = newAccount("pete");
+  const page = await signUp(session, olga);
+  const text = uniqueText("olga の投稿");
+  await writePost(page, text);
+
+  const other = await signUp(session, pete);
+  await other.getByRole("tab", { name: "みんな" }).click();
+  await postRow(other, text).getByRole("button", { name: "いいね" }).click();
+  await other.goto(`/@${olga.username}`);
+  await other.getByRole("button", { name: "フォローする" }).click();
+
+  await page.reload();
+  await expect(page.getByRole("link", { name: "通知(未読 2件)" })).toBeVisible();
+  await page.getByRole("link", { name: /^通知/ }).click();
+  await expect(page.getByText("さんがあなたをフォローしました")).toBeVisible();
+  await expect(page.getByText("さんがあなたの投稿にいいねしました")).toBeVisible();
+  await expect(page.getByRole("link", { name: "通知", exact: true })).toBeVisible();
+});

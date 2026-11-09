@@ -26,6 +26,7 @@
 | F-18 | パスワードの再設定 | 済（2026-11-09 追加） |
 | F-19 | 投稿の編集 | 済（2026-11-09 追加） |
 | F-20 | ブロック・ミュート | 済（2026-11-09 追加） |
+| F-21 | 通知 | 済（2026-11-09 追加） |
 
 ## 2. 共通の決まり
 
@@ -231,6 +232,19 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 - アイコン画像はキャッシュするので、見る人によって変えない
 - プロフィールに `blocking`・`muting` を返す。相手が自分をブロックしているかは返さない（404 になるだけ）
 
+### 4.7 通知（F-21）
+
+| メソッド | パス | 返すもの |
+| --- | --- | --- |
+| GET | `/api/notifications?before=` | `{ notifications, hasMore, nextCursor }`。新しい順に20件。1件は `{ id, type, actor, post: { id, body } \| null, createdAt, read }` |
+| GET | `/api/notifications/unread-count` | `{ count }`。画面が30秒ごとに聞く（タブが裏なら聞かない） |
+| POST | `/api/notifications/read` | 204。すべて既読にする（通知の画面を開いたとき） |
+
+- いいね・リプライ・リポストは投稿した人へ、フォローはされた人へ。自分への反応と、ブロックしている・されている相手からの反応は作らない
+- いいね・リポスト・フォローを取り消すと、その通知も消す。付け直しても1件のまま（前のものを消してから作る）。リプライは毎回1件
+- ミュート・ブロック中の人からの通知は、一覧にも未読の数にも出さない（前からあるものも）
+- 投稿・ユーザーを消すと、その通知も DB が一緒に消す
+
 ## 5. データ
 
 | テーブル | 主な列 | 制約・インデックス |
@@ -240,6 +254,7 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | password_resets | token_hash（主キー、SHA-256）, user_id, expires_at | (user_id)。アカウントを消すと一緒に消える（`V6__password_resets.sql`） |
 | blocks | id, blocker_id, blocked_id, created_at | (blocker_id, blocked_id) に一意制約、(blocked_id)。どちらのユーザーを消しても一緒に消える（`V8__blocks_mutes.sql`） |
 | mutes | id, muter_id, muted_id, created_at | (muter_id, muted_id) に一意制約。どちらのユーザーを消しても一緒に消える |
+| notifications | id, recipient_id, actor_id, type（LIKE・REPLY・REPOST・FOLLOW）, post_id, created_at, read_at | (recipient_id, id)。投稿・ユーザーを消すと一緒に消える（`V9__notifications.sql`） |
 | user_icons | user_id（主キー）, content_type, data（MEDIUMBLOB）, updated_at | 1人1枚 |
 | posts | id（連番）, user_id, body, created_at, image_*, edited_at | (user_id, id)。edited_at は本文を最後に直した時刻（`V7__post_edits.sql`） |
 | replies | id（連番）, post_id, user_id, body, created_at | (post_id, id)。投稿を消すと DB が一緒に消す（ON DELETE CASCADE） |

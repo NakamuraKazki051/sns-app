@@ -2,6 +2,8 @@ package com.snsapp.api.reply;
 
 import com.snsapp.api.auth.CurrentUser;
 import com.snsapp.api.block.Visibility;
+import com.snsapp.api.notification.Notification;
+import com.snsapp.api.notification.NotificationService;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.OpenApiConfig;
@@ -55,11 +57,13 @@ public class ReplyController {
     private final CurrentUser currentUser;
     private final RateLimiter rateLimiter;
     private final Visibility visibility;
+    private final NotificationService notifications;
 
     public ReplyController(ReplyRepository replyRepository, UserRepository userRepository,
                            PostController postController, CurrentUser currentUser, RateLimiter rateLimiter,
-                           Visibility visibility) {
+                           Visibility visibility, NotificationService notifications) {
         this.visibility = visibility;
+        this.notifications = notifications;
         this.replyRepository = replyRepository;
         this.userRepository = userRepository;
         this.postController = postController;
@@ -104,7 +108,9 @@ public class ReplyController {
         }
         Reply reply = new Reply(post, userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.unauthorized("ログインしていません")), body);
-        return ReplyResponse.from(replyRepository.save(reply));
+        Reply saved = replyRepository.save(reply);
+        notifications.postActivity(Notification.Type.REPLY, userId, post);
+        return ReplyResponse.from(saved);
     }
 
     // 自分のリプライだけ消せる。他人のものは投稿と同じく 404
