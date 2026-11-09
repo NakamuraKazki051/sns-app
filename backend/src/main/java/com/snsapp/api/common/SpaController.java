@@ -10,7 +10,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class SpaController {
 
-    @GetMapping({"/login", "/verify-email", "/search", "/settings", "/posts/{id:\\d+}",
+    // メールのリンク(/verify-email・/reset-password)も、ここに無いと開いたときに 404 になる
+    @GetMapping({"/login", "/verify-email", "/forgot-password", "/reset-password", "/search", "/settings",
+            "/posts/{id:\\d+}",
             "/{handle:@[A-Za-z0-9_]{1,15}}",
             "/{handle:@[A-Za-z0-9_]{1,15}}/following",
             "/{handle:@[A-Za-z0-9_]{1,15}}/followers"})
