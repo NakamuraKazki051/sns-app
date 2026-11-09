@@ -247,7 +247,7 @@ test("DM を送ると相手のメニューに未読の数が出て、開くと�
   const answer = uniqueText("やあ、元気です");
 
   await r.goto(`/@${sam.username}`);
-  await r.getByRole("link", { name: "メッセージ", exact: true }).click();
+  await r.locator(".profile").getByRole("link", { name: "メッセージ", exact: true }).click();
   await expect(r).toHaveURL(new RegExp(`/messages/${sam.username}$`));
   await r.getByRole("textbox", { name: "メッセージを入力" }).fill(hello);
   await r.getByRole("button", { name: "送信" }).click();
