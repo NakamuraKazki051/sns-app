@@ -7,14 +7,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
-import java.util.Base64;
-import java.util.HexFormat;
 
 /**
  * メールアドレスの確認。登録と、メールアドレスの変更で使う。
@@ -31,7 +25,6 @@ public class EmailVerificationService {
     private final VerificationMailer mailer;
     private final String publicUrl;
     private final boolean required;
-    private final SecureRandom random = new SecureRandom();
     private Clock clock = Clock.systemUTC();
 
     public EmailVerificationService(EmailVerificationRepository verifications, UserRepository users,
@@ -51,16 +44,14 @@ public class EmailVerificationService {
 
     /** 確認リンクを email に送る。確認できるとそのアドレスが user のものになる */
     public void send(User user, String email) {
-        byte[] bytes = new byte[32];
-        random.nextBytes(bytes);
-        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        String token = LinkTokens.newToken();
         verifications.deleteAllOfUser(user.getId());
-        verifications.save(new EmailVerification(hash(token), user.getId(), email, clock.instant().plus(LINK_LIFETIME)));
+        verifications.save(new EmailVerification(LinkTokens.hash(token), user.getId(), email, clock.instant().plus(LINK_LIFETIME)));
         mailer.send(email, publicUrl + "/verify-email?token=" + token);
     }
 
     public void verify(String token) {
-        EmailVerification verification = verifications.findById(hash(token))
+        EmailVerification verification = verifications.findById(LinkTokens.hash(token))
                 .filter(v -> v.getExpiresAt().isAfter(clock.instant()))
                 .orElseThrow(() -> ApiException.badRequest("リンクが正しくないか、有効期限が切れています"));
         User user = users.findById(verification.getUserId())
@@ -87,14 +78,5 @@ public class EmailVerificationService {
     /** テストで時間を進めるため */
     void setClock(Clock clock) {
         this.clock = clock;
-    }
-
-    private static String hash(String token) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
     }
 }

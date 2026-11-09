@@ -56,15 +56,7 @@ public class GmailVerificationMailer implements VerificationMailer {
 
     @Override
     public void send(String to, String link) {
-        if (username.isEmpty()) {
-            log.info("メールは送らず、確認リンクをログに出します: {} {}", to, link);
-            return;
-        }
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom("RaiseLine <" + username + ">");
-        message.setTo(to);
-        message.setSubject("RaiseLine メールアドレスの確認");
-        message.setText("""
+        deliver(to, link, "RaiseLine メールアドレスの確認", """
                 RaiseLine をご利用いただきありがとうございます。
                 次のリンクを開いて、メールアドレスの確認を済ませてください。リンクの有効期限は24時間です。
 
@@ -72,6 +64,30 @@ public class GmailVerificationMailer implements VerificationMailer {
 
                 心当たりがない場合は、このメールを無視してください。
                 """.formatted(link));
+    }
+
+    @Override
+    public void sendPasswordReset(String to, String link) {
+        deliver(to, link, "RaiseLine パスワードの再設定", """
+                パスワードの再設定を受け付けました。
+                次のリンクを開いて、新しいパスワードを決めてください。リンクの有効期限は1時間で、1回だけ使えます。
+
+                %s
+
+                心当たりがない場合は、このメールを無視してください。パスワードは変わりません。
+                """.formatted(link));
+    }
+
+    private void deliver(String to, String link, String subject, String text) {
+        if (username.isEmpty()) {
+            log.info("メールは送らず、リンクをログに出します: {} {} {}", subject, to, link);
+            return;
+        }
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom("RaiseLine <" + username + ">");
+        message.setTo(to);
+        message.setSubject(subject);
+        message.setText(text);
         try {
             sender.send(message);
         } catch (MailException e) {

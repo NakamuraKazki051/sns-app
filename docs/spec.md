@@ -23,6 +23,7 @@
 | F-14 | 画像の添付 | 済 |
 | F-16 | 新着のお知らせ（「↑ 新しい投稿 N件」） | 済（2026-11-04 追加） |
 | F-17 | アカウントの削除 | 済（2026-11-09 追加） |
+| F-18 | パスワードの再設定 | 済（2026-11-09 追加） |
 
 ## 2. 共通の決まり
 
@@ -150,6 +151,8 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 
 **アカウントの削除（F-17）：** `DELETE /api/users/me`（本文 `{ "password": "…" }`）。パスワードが違えば 400、5分に5回まで（429）。1つのトランザクションで、本人のいいね・リポスト・リプライ・フォロー（する側とされる側）・投稿（付いたリプライ・いいね・リポストも）・アイコン・ユーザーを消し（`AccountDeletionService`）、DB から消えたあとで投稿の画像を消す。ユーザーがいなくなるので、どの端末の JWT も 401 になる。同じメールアドレス・ユーザー名で登録し直せる。新しいテーブルで `users` を参照するときは `ON DELETE CASCADE` にするか、`AccountDeletionService` に消す順番を足す。
 
+**パスワードの再設定（F-18）：** `POST /api/auth/forgot-password`（`{ "email" }`）は、確認の済んだ登録があればリンク `/reset-password?token=…` をメールで送る。登録の有無が分からないよう、いつも 204。1つのアドレスにつき1時間に3回、IP ごとにも数える。`POST /api/auth/reset-password`（`{ "token", "newPassword" }`）で新しいパスワードにする。リンクは1時間で切れ、1回だけ使え、新しいリンクを送ると古いものは使えない。DB にはトークンの SHA-256 だけを置く（`password_resets`）。変えると JWT の世代が進み、すべての端末でログアウトになる。
+
 ### 4.2 投稿・タイムライン
 
 | メソッド | パス | 送るもの | 返すもの | エラー |
@@ -211,6 +214,7 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | --- | --- | --- |
 | users | id（UUID）, email, password_hash, username, display_name, bio, icon_updated_at, created_at, email_verified_at, token_version | email・username に一意制約。token_version はログインの JWT の世代（`V5`） |
 | revoked_sessions | session_id（主キー、JWT の sid）, expires_at | ログアウトしたログイン。期限を過ぎた行はログアウトのたびに消す（`V5__token_revocation.sql`） |
+| password_resets | token_hash（主キー、SHA-256）, user_id, expires_at | (user_id)。アカウントを消すと一緒に消える（`V6__password_resets.sql`） |
 | user_icons | user_id（主キー）, content_type, data（MEDIUMBLOB）, updated_at | 1人1枚 |
 | posts | id（連番）, user_id, body, created_at | (user_id, id) |
 | replies | id（連番）, post_id, user_id, body, created_at | (post_id, id)。投稿を消すと DB が一緒に消す（ON DELETE CASCADE） |

@@ -27,6 +27,41 @@ tags:
 - description: 表示名・自己紹介・アイコンの変更
   name: 自分の設定
 paths:
+  /api/auth/forgot-password:
+    post:
+      description: 登録の有無が分からないよう、送らなかったときも 204 を返す。リンクは1時間有効。1つのアドレスにつき1時間に3回まで
+      operationId: forgotPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 確認メールを送れなかった。少し待ってからやり直す
+      security: []
+      summary: パスワード再設定のメールを送る
+      tags:
+      - 認証
   /api/auth/login:
     post:
       description: 成功すると Cookie(SNS_TOKEN、中身は JWT)が付く。1つのメールアドレスにつき5分に10回まで
@@ -175,6 +210,29 @@ paths:
           description: 回数が多すぎる。少し待ってからやり直す
       security: []
       summary: 確認メールの再送
+      tags:
+      - 認証
+  /api/auth/reset-password:
+    post:
+      description: 再設定のメールのリンクに入っているトークンと、新しいパスワードを送る。トークンは1回だけ使える。すべての端末でログアウトになるので、新しいパスワードでログインし直す
+      operationId: resetPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+      security: []
+      summary: 新しいパスワードを決める
       tags:
       - 認証
   /api/auth/verify-email:
@@ -1317,6 +1375,15 @@ components:
           format: int64
         following:
           type: boolean
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          maxLength: 255
+          minLength: 0
+      required:
+      - email
     ImagePostForm:
       type: object
       properties:
@@ -1549,6 +1616,20 @@ components:
           minLength: 0
       required:
       - email
+    ResetPasswordRequest:
+      type: object
+      properties:
+        newPassword:
+          type: string
+          maxLength: 72
+          minLength: 8
+        token:
+          type: string
+          maxLength: 100
+          minLength: 0
+      required:
+      - newPassword
+      - token
     UpdateRequest:
       type: object
       properties:
