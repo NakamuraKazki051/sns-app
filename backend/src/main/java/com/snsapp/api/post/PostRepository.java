@@ -48,7 +48,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @EntityGraph(attributePaths = "user")
     List<Post> findByUserIdInAndIdGreaterThanOrderByIdDesc(Collection<String> userIds, Long after, Limit limit);
 
-    /** 消す前に画像の置き場所を知るため(自分の投稿だけ) */
+    /** 自分の投稿だけ読む(消す前に画像の置き場所を知る、本文を直す) */
     Optional<Post> findByIdAndUserId(Long id, String userId);
 
     /** 自分の投稿だけ消せる。消した件数(0 か 1)を返す */

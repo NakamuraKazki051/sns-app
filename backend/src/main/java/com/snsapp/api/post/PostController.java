@@ -11,6 +11,7 @@ import com.snsapp.api.follow.FollowRepository;
 import com.snsapp.api.like.PostLike;
 import com.snsapp.api.like.PostLikeRepository;
 import com.snsapp.api.post.PostDtos.CreateRequest;
+import com.snsapp.api.post.PostDtos.EditRequest;
 import com.snsapp.api.post.PostDtos.ImagePostForm;
 import com.snsapp.api.post.PostDtos.LikeResponse;
 import com.snsapp.api.post.PostDtos.NewPostsResponse;
@@ -38,6 +39,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,6 +51,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -272,6 +276,29 @@ public class PostController {
                 .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePrivate().immutable())
                 .header("X-Content-Type-Options", "nosniff")
                 .body(data);
+    }
+
+    /** 自分の投稿の本文を直す(F-19)。他人の投稿は消すときと同じく 404 */
+    @Operation(operationId = "editPost", summary = "投稿の本文を直す",
+            description = "自分の投稿だけ直せる。画像はそのまま。本文は140字まで、画像のある投稿なら空でもよい。"
+                    + "直すと editedAt が入り、画面に「編集済み」と出る。投稿と合わせて1人1分に10回まで")
+    @ApiErrors({400, 404, 429})
+    @PatchMapping("/posts/{id}")
+    @Transactional
+    public PostResponse edit(@PathVariable Long id, @RequestBody EditRequest request, HttpServletRequest httpRequest) {
+        String userId = currentUser.require(httpRequest);
+        Post post = postRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> ApiException.notFound("投稿が見つかりません: " + id));
+        String body = post.getImage() != null && (request.body() == null || request.body().isBlank())
+                ? ""
+                : bodyValue(request.body(), "投稿");
+        if (body.equals(post.getBody())) {
+            // 何も変わらないなら「編集済み」にしない
+            return postViews.one(post, userId);
+        }
+        acquirePostSlot(userId);
+        post.edit(body, Instant.now());
+        return postViews.one(postRepository.saveAndFlush(post), userId);
     }
 
     // 他人の投稿は 403 ではなく 404 にする(消せる投稿が存在しない、という扱い)。リプライといいねは DB が一緒に消す

@@ -47,6 +47,8 @@ export type Post = {
   repostedBy: PublicUser | null;
   /** 添付した画像(1枚まで)。無ければ null */
   image: PostImage | null;
+  /** 本文を最後に直した時刻(F-19)。直していなければ null */
+  editedAt?: string | null;
   /** サーバーから読んだのではなく、投稿した直後に画面で一覧へ足した行(画面だけの目印) */
   addedHere?: boolean;
 };

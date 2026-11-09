@@ -142,3 +142,22 @@ test("画像付きの投稿が、ほかの人の画面に表示され、投稿�
   const response = await b.request.get(src!);
   expect(response.status()).toBe(404);
 });
+
+test("自分の投稿の本文を直すと、ほかの人にも直した本文と「編集済み」が出る", async ({ session }) => {
+  const kate = newAccount("kate");
+  const page = await signUp(session, kate);
+  const before = uniqueText("誤字のある投稿");
+  const after = uniqueText("直した投稿");
+  await writePost(page, before);
+
+  await postRow(page, before).getByRole("button", { name: "編集" }).click();
+  // 直している間は本文が入力欄に移るので、行ではなく画面から探す
+  await page.getByRole("textbox", { name: "投稿を編集" }).fill(after);
+  await page.getByRole("button", { name: "保存する" }).click();
+  await expect(postRow(page, after).getByText("(編集済み)")).toBeVisible();
+
+  const viewer = await signUp(session, newAccount("leo"));
+  await viewer.getByRole("tab", { name: "みんな" }).click();
+  await expect(postRow(viewer, after).getByText("(編集済み)")).toBeVisible();
+  await expect(viewer.getByText(before)).toHaveCount(0);
+});

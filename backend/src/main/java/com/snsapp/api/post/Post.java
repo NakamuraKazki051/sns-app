@@ -42,7 +42,20 @@ public class Post {
     @Embedded
     private PostImage image;
 
+    // 本文を最後に直した時刻(F-19)。直していなければ null
+    private Instant editedAt;
+
     protected Post() {
+    }
+
+    /** 本文を直す。画像はそのまま */
+    public void edit(String body, Instant at) {
+        this.body = body;
+        this.editedAt = at;
+    }
+
+    public Instant getEditedAt() {
+        return editedAt;
     }
 
     public Post(User user, String body) {
