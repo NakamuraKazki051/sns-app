@@ -67,13 +67,14 @@ class OpenApiDocTest extends ApiTestSupport {
         assertEquals(Set.of("POST /api/auth/register", "POST /api/auth/login", "POST /api/auth/logout",
                 "POST /api/auth/verify-email", "POST /api/auth/resend-verification",
                 "POST /api/auth/forgot-password", "POST /api/auth/reset-password"), publicApis);
-        assertEquals(39, needLogin);
+        assertEquals(41, needLogin);
     }
 
     /** 入力の確認で先に 400 にならないよう、仕様書の必須の項目を埋める */
     private static AbstractMockHttpServletRequestBuilder<?> requestWithoutLogin(String method, String path,
                                                                                 JsonNode operation) {
-        String url = path.replace("{id}", "1").replace("{postId}", "1").replace("{username}", "nobody");
+        String url = path.replace("{id}", "1").replace("{postId}", "1").replace("{username}", "nobody")
+                .replace("{tag}", "tag");
         HttpMethod httpMethod = HttpMethod.valueOf(method.toUpperCase(Locale.ROOT));
         JsonNode content = operation.path("requestBody").path("content");
         AbstractMockHttpServletRequestBuilder<?> request;

@@ -56,4 +56,16 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Modifying
     @Query("delete from Post p where p.id = :id and p.user.id = :userId")
     int deleteOwn(@Param("id") Long id, @Param("userId") String userId);
+
+    /** ハッシュタグの付いた投稿(新しい順、F-22)。hidden の人の投稿は除く */
+    @Query("select p from Post p join fetch p.user where p.id in"
+            + " (select h.postId from PostHashtag h where h.tag = :tag)"
+            + " and p.user.id not in :hidden order by p.id desc")
+    List<Post> findByHashtag(@Param("tag") String tag, @Param("hidden") Collection<String> hidden, Limit limit);
+
+    @Query("select p from Post p join fetch p.user where p.id in"
+            + " (select h.postId from PostHashtag h where h.tag = :tag and h.postId < :before)"
+            + " and p.user.id not in :hidden order by p.id desc")
+    List<Post> findByHashtagBefore(@Param("tag") String tag, @Param("hidden") Collection<String> hidden,
+                                   @Param("before") Long before, Limit limit);
 }

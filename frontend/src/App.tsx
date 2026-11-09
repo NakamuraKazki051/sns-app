@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router";
 import { RequireAuth } from "./auth";
 import { Layout } from "./components/Layout";
 import { FollowListPage } from "./pages/FollowListPage";
+import { HashtagPage } from "./pages/HashtagPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
@@ -34,6 +35,7 @@ export function App() {
         <Route index element={<TimelinePage />} />
         <Route path="search" element={<SearchPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="hashtag/:tag" element={<HashtagPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="posts/:id" element={<PostPage />} />
         <Route path=":handle" element={<UserPage />} />

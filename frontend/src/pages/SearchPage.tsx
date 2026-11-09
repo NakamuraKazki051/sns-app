@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
+import { api } from "../api";
 import { UserList } from "../components/UserList";
+import { hashtagPath } from "../hashtags";
 import { loadNothing, loadUsers } from "../loaders";
 import type { UserSummary } from "../types";
 import { usePaged } from "../usePaged";
@@ -44,8 +46,46 @@ export function SearchPage() {
       {query ? (
         <UserList paged={paged} emptyMessage={`「${query}」に当てはまるユーザーはいません`} />
       ) : (
-        <p className="empty">ユーザー名や表示名の一部を入れて検索してください</p>
+        <>
+          <p className="empty">ユーザー名や表示名の一部を入れて検索してください</p>
+          <Trends />
+        </>
       )}
     </>
+  );
+}
+
+type Trend = { tag: string; postsCount: number };
+
+/** トレンド(F-22): この24時間によく使われたハッシュタグ */
+function Trends() {
+  const [trends, setTrends] = useState<Trend[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<Trend[]>("/api/trends")
+      .then((list) => !cancelled && setTrends(list))
+      // トレンドは無くても検索はできるので、失敗したら出さない
+      .catch(() => !cancelled && setTrends([]));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!trends || trends.length === 0) return null;
+  return (
+    <section className="card form">
+      <h3>トレンド（24時間）</h3>
+      <ol className="trend-list">
+        {trends.map((trend) => (
+          <li key={trend.tag}>
+            <Link to={hashtagPath(trend.tag)} className="hashtag">
+              #{trend.tag}
+            </Link>
+            <span className="muted">{trend.postsCount}件</span>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

@@ -27,6 +27,7 @@
 | F-19 | 投稿の編集 | 済（2026-11-09 追加） |
 | F-20 | ブロック・ミュート | 済（2026-11-09 追加） |
 | F-21 | 通知 | 済（2026-11-09 追加） |
+| F-22 | ハッシュタグ・トレンド | 済（2026-11-09 追加） |
 
 ## 2. 共通の決まり
 
@@ -245,6 +246,17 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 - ミュート・ブロック中の人からの通知は、一覧にも未読の数にも出さない（前からあるものも）
 - 投稿・ユーザーを消すと、その通知も DB が一緒に消す
 
+### 4.8 ハッシュタグ・トレンド（F-22）
+
+| メソッド | パス | 返すもの |
+| --- | --- | --- |
+| GET | `/api/hashtags/{tag}/posts?before=` | タグの付いた投稿（新しい順に20件、投稿一覧と同じ形）。タグは # なしで渡す（付けてもよい）。大文字・小文字は区別しない。51字以上は 400。ブロック・ミュート中の人の投稿は出さない |
+| GET | `/api/trends` | `[{ tag, postsCount }]`。この24時間に投稿されたうち、使われた投稿の多いタグ10個まで |
+
+- タグの決まり（`Hashtags.java` と `frontend/src/hashtags.tsx` で同じ）：`#` か `＃` のあとの文字・数字・`_` の並び（日本語も可、50字まで）。直前が文字・数字・`_` なら取らない（`C#`）。数字だけは取らない（`#1`）
+- 投稿・編集のたびに本文から取り出し直す（`HashtagService.sync`）
+- 画面：本文のタグをリンクにし（`/hashtag/タグ`）、検索画面の下にトレンド
+
 ## 5. データ
 
 | テーブル | 主な列 | 制約・インデックス |
@@ -255,6 +267,7 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | blocks | id, blocker_id, blocked_id, created_at | (blocker_id, blocked_id) に一意制約、(blocked_id)。どちらのユーザーを消しても一緒に消える（`V8__blocks_mutes.sql`） |
 | mutes | id, muter_id, muted_id, created_at | (muter_id, muted_id) に一意制約。どちらのユーザーを消しても一緒に消える |
 | notifications | id, recipient_id, actor_id, type（LIKE・REPLY・REPOST・FOLLOW）, post_id, created_at, read_at | (recipient_id, id)。投稿・ユーザーを消すと一緒に消える（`V9__notifications.sql`） |
+| post_hashtags | id, post_id, tag（小文字、# なし、50字まで）, created_at（投稿した時刻） | (post_id, tag) に一意制約、(tag, post_id)、(created_at)。投稿を消すと一緒に消える（`V10__hashtags.sql`。前からある投稿は Java の `V11__BackfillHashtags` で取り出す） |
 | user_icons | user_id（主キー）, content_type, data（MEDIUMBLOB）, updated_at | 1人1枚 |
 | posts | id（連番）, user_id, body, created_at, image_*, edited_at | (user_id, id)。edited_at は本文を最後に直した時刻（`V7__post_edits.sql`） |
 | replies | id（連番）, post_id, user_id, body, created_at | (post_id, id)。投稿を消すと DB が一緒に消す（ON DELETE CASCADE） |

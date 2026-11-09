@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { api, errorMessage } from "../api";
 import { useMe } from "../auth";
 import { useFeedback } from "../feedback";
+import { TextWithHashtags } from "../hashtags";
 import { countChars, fullTime, POST_MAX, relativeTime } from "../text";
 import type { Post } from "../types";
 import { Avatar } from "./Avatar";
@@ -156,8 +157,12 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true, isNew
             </div>
           </div>
         ) : (
-          // 本文は文字として出す(HTML として解釈しない)。改行は CSS の pre-wrap でそのまま見せる
-          post.body !== "" && <p className="post-text">{post.body}</p>
+          // 本文は文字として出す(HTML として解釈しない)。#タグだけリンクにする。改行は CSS の pre-wrap でそのまま見せる
+          post.body !== "" && (
+            <p className="post-text">
+              <TextWithHashtags text={post.body} />
+            </p>
+          )
         )}
         {post.image && (
           // 幅と高さを先に渡して枠を取っておく(読み込んだときに下の投稿がずれない)。押すと大きく見られる

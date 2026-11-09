@@ -2,6 +2,7 @@ package com.snsapp.api.post;
 
 import com.snsapp.api.auth.CurrentUser;
 import com.snsapp.api.block.Visibility;
+import com.snsapp.api.hashtag.HashtagService;
 import com.snsapp.api.notification.Notification;
 import com.snsapp.api.notification.NotificationService;
 import com.snsapp.api.common.ApiErrors;
@@ -92,11 +93,13 @@ public class PostController {
     private final ImageStorage imageStorage;
     private final Visibility visibility;
     private final NotificationService notifications;
+    private final HashtagService hashtags;
 
     public PostController(PostRepository postRepository, PostLikeRepository likeRepository,
                           FollowRepository followRepository, UserRepository userRepository, PostViews postViews,
                           CurrentUser currentUser, RateLimiter rateLimiter, ImageStorage imageStorage,
-                          Visibility visibility, NotificationService notifications) {
+                          Visibility visibility, NotificationService notifications, HashtagService hashtags) {
+        this.hashtags = hashtags;
         this.notifications = notifications;
         this.visibility = visibility;
         this.postRepository = postRepository;
@@ -220,7 +223,9 @@ public class PostController {
         String body = bodyValue(request.body(), "投稿");
         // 入力の確認が済んでから回数に数える(空の投稿で弾かれた分は数えない)
         acquirePostSlot(userId);
-        return postViews.one(postRepository.save(new Post(findUser(userId), body)), userId);
+        Post post = postRepository.save(new Post(findUser(userId), body));
+        hashtags.sync(post);
+        return postViews.one(post, userId);
     }
 
     /**
@@ -268,6 +273,7 @@ public class PostController {
             deleteImageQuietly(key);
             throw e;
         }
+        hashtags.sync(post);
         // 保存できたあとは画像を消さない(応答を作るところで失敗しても、投稿は残っている)
         return postViews.one(post, userId);
     }
@@ -314,7 +320,9 @@ public class PostController {
         }
         acquirePostSlot(userId);
         post.edit(body, Instant.now());
-        return postViews.one(postRepository.saveAndFlush(post), userId);
+        Post saved = postRepository.saveAndFlush(post);
+        hashtags.sync(saved);
+        return postViews.one(saved, userId);
     }
 
     // 他人の投稿は 403 ではなく 404 にする(消せる投稿が存在しない、という扱い)。リプライといいねは DB が一緒に消す
