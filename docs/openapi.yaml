@@ -26,6 +26,8 @@ tags:
   name: ユーザー
 - description: 表示名・自己紹介・アイコンの変更
   name: 自分の設定
+- description: いいね・リプライ・リポスト・フォローの通知
+  name: 通知
 paths:
   /api/auth/forgot-password:
     post:
@@ -402,6 +404,75 @@ paths:
       summary: 表示名と自己紹介を変える
       tags:
       - 自分の設定
+  /api/notifications:
+    get:
+      description: 新しい順に20件。ブロック・ミュート中の人からのものは出さない
+      operationId: listNotifications
+      parameters:
+      - description: 前のページの nextCursor
+        in: query
+        name: before
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPage"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 自分への通知
+      tags:
+      - 通知
+  /api/notifications/read:
+    post:
+      description: 通知の画面を開いたときに呼ぶ
+      operationId: markNotificationsRead
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 通知をすべて既読にする
+      tags:
+      - 通知
+  /api/notifications/unread-count:
+    get:
+      operationId: countUnreadNotifications
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadCount"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 未読の通知の数
+      tags:
+      - 通知
   /api/posts:
     post:
       description: |-
@@ -1689,6 +1760,45 @@ components:
           description: 新着の投稿者。重複なしで3人まで
           items:
             $ref: "#/components/schemas/PublicUser"
+    NotificationPage:
+      type: object
+      properties:
+        hasMore:
+          type: boolean
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: 次のページを読むときに before に渡す値
+        notifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationResponse"
+    NotificationResponse:
+      type: object
+      properties:
+        actor:
+          $ref: "#/components/schemas/PublicUser"
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          description: 通知 ID(文字列)
+        post:
+          anyOf:
+          - $ref: "#/components/schemas/PostSummary"
+          - type: "null"
+          description: どの投稿への反応か。フォローでは null
+        read:
+          type: boolean
+        type:
+          type: string
+          enum:
+          - LIKE
+          - REPLY
+          - REPOST
+          - FOLLOW
     PageResponse:
       type: object
       properties:
@@ -1745,6 +1855,14 @@ components:
           format: int64
         user:
           $ref: "#/components/schemas/PublicUser"
+    PostSummary:
+      type: object
+      properties:
+        body:
+          type: string
+        id:
+          type: string
+          description: 投稿 ID(文字列)
     ProfileResponse:
       type: object
       properties:
@@ -1889,6 +2007,12 @@ components:
       required:
       - newPassword
       - token
+    UnreadCount:
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int64
     UpdateRequest:
       type: object
       properties:

@@ -4,6 +4,8 @@ import com.snsapp.api.auth.CurrentUser;
 import com.snsapp.api.block.BlockRepository;
 import com.snsapp.api.block.MuteRepository;
 import com.snsapp.api.block.Visibility;
+import com.snsapp.api.notification.Notification;
+import com.snsapp.api.notification.NotificationService;
 import com.snsapp.api.auth.EmailVerificationService;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
@@ -80,12 +82,15 @@ public class UserController {
     private final Visibility visibility;
     private final BlockRepository blockRepository;
     private final MuteRepository muteRepository;
+    private final NotificationService notifications;
 
     public UserController(UserRepository userRepository, UserIconRepository userIconRepository,
                           PostRepository postRepository, FollowRepository followRepository, PostViews postViews,
                           PasswordEncoder passwordEncoder, CurrentUser currentUser,
                           EmailVerificationService emailVerification, RateLimiter rateLimiter,
-                          Visibility visibility, BlockRepository blockRepository, MuteRepository muteRepository) {
+                          Visibility visibility, BlockRepository blockRepository, MuteRepository muteRepository,
+                          NotificationService notifications) {
+        this.notifications = notifications;
         this.visibility = visibility;
         this.blockRepository = blockRepository;
         this.muteRepository = muteRepository;
@@ -175,6 +180,7 @@ public class UserController {
         if (!followRepository.existsByFollowerIdAndFolloweeId(viewerId, user.getId())) {
             try {
                 followRepository.saveAndFlush(new Follow(userRepository.getReferenceById(viewerId), user));
+                notifications.followed(viewerId, user.getId());
             } catch (DataIntegrityViolationException e) {
                 // 上の確認と保存の間に同じフォローが入った(連打)。一意制約で弾かれたので、フォロー済みとして扱う
             }
@@ -191,6 +197,7 @@ public class UserController {
         String viewerId = currentUser.require(httpRequest);
         User user = findUser(username, viewerId);
         followRepository.deleteByFollowerIdAndFolloweeId(viewerId, user.getId());
+        notifications.retract(Notification.Type.FOLLOW, viewerId, user.getId(), null);
         return new FollowResponse(false, followRepository.countByFolloweeId(user.getId()));
     }
 

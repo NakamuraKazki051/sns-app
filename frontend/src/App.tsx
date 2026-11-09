@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout";
 import { FollowListPage } from "./pages/FollowListPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordResetPages";
 import { PostPage } from "./pages/PostPage";
 import { SearchPage } from "./pages/SearchPage";
@@ -32,6 +33,7 @@ export function App() {
       >
         <Route index element={<TimelinePage />} />
         <Route path="search" element={<SearchPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="posts/:id" element={<PostPage />} />
         <Route path=":handle" element={<UserPage />} />

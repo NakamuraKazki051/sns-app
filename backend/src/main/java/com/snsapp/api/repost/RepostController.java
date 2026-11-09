@@ -4,6 +4,8 @@ import com.snsapp.api.auth.CurrentUser;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.OpenApiConfig;
+import com.snsapp.api.notification.Notification;
+import com.snsapp.api.notification.NotificationService;
 import com.snsapp.api.post.Post;
 import com.snsapp.api.post.PostController;
 import com.snsapp.api.post.PostDtos.RepostResponse;
@@ -28,9 +30,12 @@ public class RepostController {
     private final UserRepository userRepository;
     private final PostController postController;
     private final CurrentUser currentUser;
+    private final NotificationService notifications;
 
     public RepostController(RepostRepository repostRepository, UserRepository userRepository,
-                            PostController postController, CurrentUser currentUser) {
+                            PostController postController, CurrentUser currentUser,
+                            NotificationService notifications) {
+        this.notifications = notifications;
         this.repostRepository = repostRepository;
         this.userRepository = userRepository;
         this.postController = postController;
@@ -51,6 +56,7 @@ public class RepostController {
         if (!repostRepository.existsByUserIdAndPostId(userId, id)) {
             try {
                 repostRepository.saveAndFlush(new Repost(userRepository.getReferenceById(userId), post));
+                notifications.postActivity(Notification.Type.REPOST, userId, post);
             } catch (DataIntegrityViolationException e) {
                 // 上の確認と保存の間に同じリポストが入った(連打)。一意制約で弾かれたので、リポスト済みとして扱う
             }
@@ -65,8 +71,9 @@ public class RepostController {
     @DeleteMapping("/posts/{id}/repost")
     public RepostResponse unrepost(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        postController.findPost(id, userId);
+        Post post = postController.findPost(id, userId);
         repostRepository.deleteByUserIdAndPostId(userId, id);
+        notifications.retract(Notification.Type.REPOST, userId, post.getUser().getId(), id);
         return new RepostResponse(false, repostRepository.countByPostId(id));
     }
 }

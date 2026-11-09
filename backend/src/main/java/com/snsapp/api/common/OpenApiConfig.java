@@ -47,7 +47,8 @@ import java.util.Set;
                 @Tag(name = OpenApiConfig.TAG_REPLY, description = "投稿へのリプライ"),
                 @Tag(name = OpenApiConfig.TAG_REPOST, description = "他の人の投稿のリポスト"),
                 @Tag(name = OpenApiConfig.TAG_USER, description = "ユーザーページ・検索・フォロー・メールとパスワードの変更"),
-                @Tag(name = OpenApiConfig.TAG_ME, description = "表示名・自己紹介・アイコンの変更")
+                @Tag(name = OpenApiConfig.TAG_ME, description = "表示名・自己紹介・アイコンの変更"),
+                @Tag(name = OpenApiConfig.TAG_NOTIFICATION, description = "いいね・リプライ・リポスト・フォローの通知")
         })
 @SecurityScheme(name = OpenApiConfig.AUTH_COOKIE, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.COOKIE,
         paramName = "SNS_TOKEN", description = "ログインすると付く Cookie(中身は JWT、有効期限は最後の操作から30分)。Swagger UI では、ログインの API を試すと自動で付く")
@@ -60,6 +61,7 @@ public class OpenApiConfig {
     public static final String TAG_REPOST = "リポスト";
     public static final String TAG_USER = "ユーザー";
     public static final String TAG_ME = "自分の設定";
+    public static final String TAG_NOTIFICATION = "通知";
 
     private static final Map<Integer, String> ERROR_DESCRIPTIONS = Map.of(
             400, "入力が正しくない",
