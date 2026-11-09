@@ -28,6 +28,7 @@
 | F-20 | ブロック・ミュート | 済（2026-11-09 追加） |
 | F-21 | 通知 | 済（2026-11-09 追加） |
 | F-22 | ハッシュタグ・トレンド | 済（2026-11-09 追加） |
+| F-23 | DM | 済（2026-11-10 追加） |
 
 ## 2. 共通の決まり
 
@@ -257,6 +258,20 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 - 投稿・編集のたびに本文から取り出し直す（`HashtagService.sync`）
 - 画面：本文のタグをリンクにし（`/hashtag/タグ`）、検索画面の下にトレンド
 
+### 4.9 DM（F-23）
+
+| メソッド | パス | 返すもの |
+| --- | --- | --- |
+| GET | `/api/dm` | `[{ partner, lastMessage, unreadCount }]`。最後のメッセージが新しい会話から50件 |
+| GET | `/api/dm/unread-count` | `{ count }`。読んでいない DM の数。画面が30秒ごとに聞く（タブが裏なら聞かない） |
+| GET | `/api/dm/{username}?before=` | `{ messages, hasMore, nextCursor }`。相手とのやりとりを新しい順に30件。1件は `{ id, mine, body, createdAt, read }`。最初のページを読むと、相手から届いた分が既読になる |
+| POST | `/api/dm/{username}` | 201 と送ったメッセージ。本文は前後の空白を落として1〜500字（見た目の1文字で数える）。自分あては 400。1人1分に20通まで（429） |
+
+- 会話のテーブルは作らない。「自分と相手の間のメッセージ」を毎回引く
+- ブロックしている・されている相手は、いないものとして 404。一覧・未読の数からも外す（外せば前のやりとりもまた見える）。ミュートは DM に関係しない
+- 画面：メニューに「メッセージ」と未読の数、`/messages` に会話一覧、`/messages/ユーザー名` にやりとり（古い順、自分のものは右）。会話を開いている間は最初のページを5秒ごとに聞き直し、新着と相手の既読を反映する。自分の最後のメッセージに「既読」か「送信済み」
+- ユーザーを消すと、その人の DM も DB が一緒に消す
+
 ## 5. データ
 
 | テーブル | 主な列 | 制約・インデックス |
@@ -268,6 +283,7 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | mutes | id, muter_id, muted_id, created_at | (muter_id, muted_id) に一意制約。どちらのユーザーを消しても一緒に消える |
 | notifications | id, recipient_id, actor_id, type（LIKE・REPLY・REPOST・FOLLOW）, post_id, created_at, read_at | (recipient_id, id)。投稿・ユーザーを消すと一緒に消える（`V9__notifications.sql`） |
 | post_hashtags | id, post_id, tag（小文字、# なし、50字まで）, created_at（投稿した時刻） | (post_id, tag) に一意制約、(tag, post_id)、(created_at)。投稿を消すと一緒に消える（`V10__hashtags.sql`。前からある投稿は Java の `V11__BackfillHashtags` で取り出す） |
+| direct_messages | id（連番）, sender_id, recipient_id, body（500字まで）, created_at, read_at | (sender_id, recipient_id, id)、(recipient_id, sender_id, id)。どちらのユーザーを消しても一緒に消える（`V12__direct_messages.sql`） |
 | user_icons | user_id（主キー）, content_type, data（MEDIUMBLOB）, updated_at | 1人1枚 |
 | posts | id（連番）, user_id, body, created_at, image_*, edited_at | (user_id, id)。edited_at は本文を最後に直した時刻（`V7__post_edits.sql`） |
 | replies | id（連番）, post_id, user_id, body, created_at | (post_id, id)。投稿を消すと DB が一緒に消す（ON DELETE CASCADE） |

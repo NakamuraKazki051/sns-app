@@ -237,3 +237,34 @@ test("#タグを押すと同じタグの投稿が並び、検索画面のトレ�
   await page.goto("/search");
   await expect(page.getByRole("link", { name: `#${tag}` })).toBeVisible();
 });
+
+test("DM を送ると相手のメニューに未読の数が出て、開くとやりとりでき、既読が付く", async ({ session }) => {
+  const rita = newAccount("rita");
+  const sam = newAccount("sam");
+  const r = await signUp(session, rita);
+  const s = await signUp(session, sam);
+  const hello = uniqueText("こんにちは");
+  const answer = uniqueText("やあ、元気です");
+
+  await r.goto(`/@${sam.username}`);
+  await r.locator(".profile").getByRole("link", { name: "メッセージ", exact: true }).click();
+  await expect(r).toHaveURL(new RegExp(`/messages/${sam.username}$`));
+  await r.getByRole("textbox", { name: "メッセージを入力" }).fill(hello);
+  await r.getByRole("button", { name: "送信" }).click();
+  await expect(r.locator(".dm.mine").getByText(hello)).toBeVisible();
+  await expect(r.getByText(/送信済み/)).toBeVisible();
+
+  await s.reload();
+  await expect(s.getByRole("link", { name: "メッセージ(未読 1件)" })).toBeVisible();
+  await s.getByRole("link", { name: /^メッセージ/ }).click();
+  await expect(s.getByLabel("未読 1件")).toBeVisible();
+  await s.getByRole("link", { name: new RegExp(rita.displayName) }).click();
+  await expect(s.locator(".dm:not(.mine)").getByText(hello)).toBeVisible();
+  await expect(s.getByRole("link", { name: "メッセージ", exact: true })).toBeVisible();
+  await s.getByRole("textbox", { name: "メッセージを入力" }).fill(answer);
+  await s.getByRole("button", { name: "送信" }).click();
+
+  // 開いたままの相手の画面にも、5秒ごとの確認で届き、自分のメッセージに既読が付く
+  await expect(r.locator(".dm:not(.mine)").getByText(answer)).toBeVisible({ timeout: 15_000 });
+  await expect(r.getByText(/既読/)).toBeVisible();
+});

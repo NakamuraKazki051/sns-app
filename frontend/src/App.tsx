@@ -5,6 +5,7 @@ import { FollowListPage } from "./pages/FollowListPage";
 import { HashtagPage } from "./pages/HashtagPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { ConversationPage, MessagesPage } from "./pages/MessagesPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordResetPages";
 import { PostPage } from "./pages/PostPage";
@@ -35,6 +36,8 @@ export function App() {
         <Route index element={<TimelinePage />} />
         <Route path="search" element={<SearchPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="messages" element={<MessagesPage />} />
+        <Route path="messages/:username" element={<ConversationPage />} />
         <Route path="hashtag/:tag" element={<HashtagPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="posts/:id" element={<PostPage />} />

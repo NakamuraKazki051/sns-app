@@ -10,6 +10,7 @@ export function countChars(text: string): number {
 }
 
 export const POST_MAX = 140;
+export const DM_MAX = 500;
 export const BIO_MAX = 160;
 export const DISPLAY_NAME_MAX = 50;
 

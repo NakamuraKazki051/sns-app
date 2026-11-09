@@ -55,7 +55,7 @@ public class AccountController {
     }
 
     @Operation(operationId = "deleteAccount", summary = "アカウントを削除する",
-            description = "今のパスワードが要る。投稿・リプライ・いいね・リポスト・フォロー・アイコン・投稿の画像も消え、元に戻せない。"
+            description = "今のパスワードが要る。投稿・リプライ・いいね・リポスト・フォロー・アイコン・投稿の画像・DM も消え、元に戻せない。"
                     + "すべての端末でログアウトになる。5分に5回まで")
     @ApiErrors({400, 429})
     @DeleteMapping("/me")

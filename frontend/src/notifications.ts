@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { POLL_INTERVAL_MS } from "./useNewPosts";
 
 /**
- * 未読の通知の数(F-21)。新着のお知らせと同じく30秒ごとに確かめ、タブが裏にあるときは聞きに行かない。
- * 通知の画面を開いて既読にしたら reset で 0 にする
+ * 未読の数(通知 F-21・DM F-23)。新着のお知らせと同じく30秒ごとに確かめ、タブが裏にあるときは聞きに行かない。
+ * reset は 0 にする(通知の画面ですべて既読にしたとき)。refresh はすぐ聞き直す(DM の会話を開いて一部だけ既読にしたとき)
  */
-export function useUnreadNotifications() {
+export function useUnreadCount(path: string) {
   const [count, setCount] = useState(0);
+  const checkRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     let cancelled = false;
@@ -17,7 +18,7 @@ export function useUnreadNotifications() {
       if (running || document.visibilityState !== "visible") return;
       running = true;
       try {
-        const result = await api<{ count: number }>("/api/notifications/unread-count");
+        const result = await api<{ count: number }>(path);
         if (!cancelled) setCount(result.count);
       } catch {
         // 数が出なくても困らないので、失敗しても何もしない(次の回にまた確かめる)
@@ -26,6 +27,7 @@ export function useUnreadNotifications() {
       }
     }
 
+    checkRef.current = check;
     void check();
     const timer = window.setInterval(check, POLL_INTERVAL_MS);
     const onVisible = () => {
@@ -37,8 +39,17 @@ export function useUnreadNotifications() {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [path]);
 
   const reset = useCallback(() => setCount(0), []);
-  return { count, reset };
+  const refresh = useCallback(() => void checkRef.current(), []);
+  return { count, reset, refresh };
+}
+
+export function useUnreadNotifications() {
+  return useUnreadCount("/api/notifications/unread-count");
+}
+
+export function useUnreadMessages() {
+  return useUnreadCount("/api/dm/unread-count");
 }
