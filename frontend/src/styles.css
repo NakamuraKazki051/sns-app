@@ -411,3 +411,25 @@ small.over { color: var(--danger); font-weight: 700; }
 .hashtag { color: var(--accent); }
 .trend-list { list-style: none; margin: 0; padding: 0; }
 .trend-list li { display: flex; justify-content: space-between; padding: 6px 0; }
+
+/* DM(F-23) */
+.conversation { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border);
+  color: inherit; text-decoration: none; }
+.conversation:hover { background: color-mix(in srgb, var(--muted) 6%, transparent); }
+.conversation.unread { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.conversation-body { flex: 1; min-width: 0; }
+.conversation-body p { margin: 0; overflow-wrap: anywhere; }
+.conversation-last { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conversation.unread .conversation-last { color: inherit; font-weight: 700; }
+.conversation-title { display: flex; gap: 12px; align-items: center; }
+.conversation-title a { color: inherit; text-decoration: none; }
+.conversation-partner { display: flex; gap: 8px; align-items: center; min-width: 0; font-size: 16px; }
+.dm-list { list-style: none; margin: 0; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.dm { display: flex; flex-direction: column; align-items: flex-start; max-width: 80%; }
+.dm.mine { align-self: flex-end; align-items: flex-end; }
+.dm-bubble { margin: 0 0 2px; padding: 8px 12px; border-radius: 16px; background: var(--border);
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+.dm.mine .dm-bubble { background: var(--accent); color: #fff; }
+.conversation .name, .conversation-title .name { font-weight: 700; }
+.conversation .sub, .conversation-title .sub, .dm .sub { color: var(--muted); font-weight: 400; }
+.dm .sub { font-size: 12px; }

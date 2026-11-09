@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router";
 import { useAuth, useMe } from "../auth";
-import { useUnreadNotifications } from "../notifications";
+import { useUnreadMessages, useUnreadNotifications } from "../notifications";
+import type { MessagesOutlet } from "../pages/MessagesPage";
 import type { NotificationsOutlet } from "../pages/NotificationsPage";
 
 type Theme = "light" | "dark";
@@ -20,7 +21,11 @@ export function Layout() {
   const [theme, setTheme] = useState<Theme>(() => document.documentElement.dataset.theme as Theme);
   const headerRef = useRef<HTMLElement>(null);
   const unread = useUnreadNotifications();
-  const outletContext = useMemo<NotificationsOutlet>(() => ({ onNotificationsRead: unread.reset }), [unread.reset]);
+  const unreadMessages = useUnreadMessages();
+  const outletContext = useMemo<NotificationsOutlet & MessagesOutlet>(
+    () => ({ onNotificationsRead: unread.reset, onMessagesRead: unreadMessages.refresh }),
+    [unread.reset, unreadMessages.refresh],
+  );
 
   // メニューは幅によって2〜3行に折り返す。タブなどをヘッダーのすぐ下に固定できるよう、実際の高さを CSS に渡す(切り捨てて、隙間が空かないよう少し重ねる)
   useEffect(() => {
@@ -67,6 +72,16 @@ export function Layout() {
             >
               通知
               {unread.count > 0 && <span className="nav-badge">{unread.count > 99 ? "99+" : unread.count}</span>}
+            </NavLink>
+            <NavLink
+              to="/messages"
+              className={navClass}
+              aria-label={unreadMessages.count > 0 ? `メッセージ(未読 ${unreadMessages.count}件)` : "メッセージ"}
+            >
+              メッセージ
+              {unreadMessages.count > 0 && (
+                <span className="nav-badge">{unreadMessages.count > 99 ? "99+" : unreadMessages.count}</span>
+              )}
             </NavLink>
             <NavLink to={`/@${me.username}`} className={navClass}>
               プロフィール

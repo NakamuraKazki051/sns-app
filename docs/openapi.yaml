@@ -28,6 +28,8 @@ tags:
   name: 自分の設定
 - description: いいね・リプライ・リポスト・フォローの通知
   name: 通知
+- description: 1対1のメッセージ
+  name: DM
 paths:
   /api/auth/forgot-password:
     post:
@@ -266,6 +268,141 @@ paths:
       summary: メールアドレスの確認
       tags:
       - 認証
+  /api/dm:
+    get:
+      description: 最後のメッセージが新しい会話から50件。相手、最後のメッセージ、未読の数
+      operationId: listConversations
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: DM の会話一覧
+      tags:
+      - DM
+  /api/dm/unread-count:
+    get:
+      operationId: countUnreadMessages
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadCount"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 読んでいない DM の数
+      tags:
+      - DM
+  /api/dm/{username}:
+    get:
+      description: 新しい順に30件。開くと、相手から届いた分は既読になる。会話を開いている間、画面が5秒ごとに最初のページを聞き直す(新着と既読を知るため)
+      operationId: listMessages
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      - description: 前のページの nextCursor
+        in: query
+        name: before
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagePage"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: 相手との DM
+      tags:
+      - DM
+    post:
+      description: 本文は500字まで(絵文字も1字と数える)。自分には送れない(400)。1人1分に20通まで
+      operationId: sendMessage
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      summary: DM を送る
+      tags:
+      - DM
   /api/hashtags/{tag}/posts:
     get:
       description: "新しい順に20件。タグは # を付けずに渡す(付けてもよい)。大文字・小文字は区別しない。ブロック・ミュート中の人の投稿は出\
@@ -1213,7 +1350,7 @@ paths:
       - ユーザー
   /api/users/me:
     delete:
-      description: 今のパスワードが要る。投稿・リプライ・いいね・リポスト・フォロー・アイコン・投稿の画像も消え、元に戻せない。すべての端末でログアウトになる。5分に5回まで
+      description: 今のパスワードが要る。投稿・リプライ・いいね・リポスト・フォロー・アイコン・投稿の画像・DM も消え、元に戻せない。すべての端末でログアウトになる。5分に5回まで
       operationId: deleteAccount
       requestBody:
         content:
@@ -1721,6 +1858,16 @@ components:
       properties:
         blocking:
           type: boolean
+    Conversation:
+      type: object
+      properties:
+        lastMessage:
+          $ref: "#/components/schemas/MessageResponse"
+        partner:
+          $ref: "#/components/schemas/PublicUser"
+        unreadCount:
+          type: integer
+          format: int64
     CreateRequest:
       type: object
       properties:
@@ -1805,6 +1952,38 @@ components:
       required:
       - email
       - password
+    MessagePage:
+      type: object
+      properties:
+        hasMore:
+          type: boolean
+        messages:
+          type: array
+          description: 新しい順
+          items:
+            $ref: "#/components/schemas/MessageResponse"
+        nextCursor:
+          type:
+          - string
+          - "null"
+          description: 古いものを読むときに before に渡す値
+    MessageResponse:
+      type: object
+      properties:
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+          description: メッセージ ID(文字列)
+        mine:
+          type: boolean
+          description: 自分が送ったものか
+        read:
+          type: boolean
+          description: 受け取った人が読んだか
     MuteResponse:
       type: object
       properties:
@@ -2069,6 +2248,12 @@ components:
       required:
       - newPassword
       - token
+    SendRequest:
+      type: object
+      properties:
+        body:
+          type: string
+          description: 本文。500字まで(絵文字も1字と数える)
     Trend:
       type: object
       properties:

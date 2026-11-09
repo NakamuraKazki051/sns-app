@@ -7,15 +7,17 @@ type Props = {
   submitLabel: string;
   /** 画像を1枚付けられるようにする(投稿欄だけ。リプライには付けない) */
   allowImage?: boolean;
+  /** 本文の上限(見た目の1文字で数える)。既定は投稿の140字 */
+  max?: number;
   /** 送信する。失敗したら例外を投げる(入力は残す) */
   onSubmit: (text: string, image: Blob | null) => Promise<void>;
 };
 
 /**
- * 投稿欄・リプライ欄。残り文字数を出し、140字を超えたり空だったりすると送れない。
+ * 投稿欄・リプライ欄・DM の入力欄。残り文字数を出し、上限(既定は140字)を超えたり空だったりすると送れない。
  * allowImage なら画像を1枚付けられる(画像があれば本文は空でもよい)
  */
-export function Composer({ placeholder, submitLabel, allowImage = false, onSubmit }: Props) {
+export function Composer({ placeholder, submitLabel, allowImage = false, max = POST_MAX, onSubmit }: Props) {
   const [text, setText] = useState("");
   const [image, setImage] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -24,7 +26,7 @@ export function Composer({ placeholder, submitLabel, allowImage = false, onSubmi
   const [sending, setSending] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const remaining = POST_MAX - countChars(text.trim());
+  const remaining = max - countChars(text.trim());
   const hasContent = text.trim() !== "" || image !== null;
   const canSubmit = hasContent && remaining >= 0 && !sending && !preparing;
 

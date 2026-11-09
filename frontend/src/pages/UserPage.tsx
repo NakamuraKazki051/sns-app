@@ -131,6 +131,11 @@ function UserPageContent({ username }: { username: string }) {
                   {profile.followedByMe ? "フォロー中" : "フォローする"}
                 </button>
               )}
+              {!profile.blocking && (
+                <Link to={`/messages/${profile.username}`} className="button">
+                  メッセージ
+                </Link>
+              )}
               <button type="button" className="button" disabled={relating} onClick={toggleMute} aria-pressed={profile.muting}>
                 {profile.muting ? "ミュート中" : "ミュート"}
               </button>

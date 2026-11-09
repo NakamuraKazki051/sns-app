@@ -84,3 +84,19 @@ export type Notification = {
   createdAt: string;
   read: boolean;
 };
+
+/** DM 1通(F-23)。mine は自分が送ったもの、read は受け取った人が読んだか */
+export type DirectMessage = {
+  id: string;
+  mine: boolean;
+  body: string;
+  createdAt: string;
+  read: boolean;
+};
+
+/** DM の会話一覧の1件 */
+export type Conversation = {
+  partner: PublicUser;
+  lastMessage: DirectMessage;
+  unreadCount: number;
+};
