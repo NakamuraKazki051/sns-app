@@ -16,10 +16,10 @@ import java.util.Optional;
 public interface PostRepository extends JpaRepository<Post, Long> {
 
     @EntityGraph(attributePaths = "user")
-    List<Post> findByOrderByIdDesc(Limit limit);
+    List<Post> findByUserIdNotInOrderByIdDesc(Collection<String> hiddenUserIds, Limit limit);
 
     @EntityGraph(attributePaths = "user")
-    List<Post> findByIdLessThanOrderByIdDesc(Long before, Limit limit);
+    List<Post> findByUserIdNotInAndIdLessThanOrderByIdDesc(Collection<String> hiddenUserIds, Long before, Limit limit);
 
     @EntityGraph(attributePaths = "user")
     Optional<Post> findWithUserById(Long id);
@@ -42,7 +42,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
      * ID(主キー)の範囲で読むので、新着の分しか見ない。数えるのは上限まで(何千件あっても数えきらない)
      */
     @EntityGraph(attributePaths = "user")
-    List<Post> findByIdGreaterThanAndUserIdNotOrderByIdDesc(Long after, String excludedUserId, Limit limit);
+    List<Post> findByIdGreaterThanAndUserIdNotInOrderByIdDesc(Long after, Collection<String> excludedUserIds, Limit limit);
 
     /** 新着のお知らせ(ホームタイムライン): after より新しい、フォロー中の人の投稿 */
     @EntityGraph(attributePaths = "user")

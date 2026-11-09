@@ -19,13 +19,16 @@ public interface RepostRepository extends JpaRepository<Repost, Long> {
 
     /**
      * この人たちのリポスト(新しい順)。リポストした人・元の投稿・その投稿者もまとめて読む(N+1 を避ける)。
-     * before には前のページで最後に出したリポストの ID を渡す
+     * before には前のページで最後に出したリポストの ID を渡す。hiddenUserIds の人の投稿のリポストは除く(ブロック・ミュート)
      */
     @EntityGraph(attributePaths = {"user", "post", "post.user"})
-    List<Repost> findByUserIdInOrderByIdDesc(Collection<String> userIds, Limit limit);
+    List<Repost> findByUserIdInAndPostUserIdNotInOrderByIdDesc(Collection<String> userIds, Collection<String> hiddenUserIds,
+                                                               Limit limit);
 
     @EntityGraph(attributePaths = {"user", "post", "post.user"})
-    List<Repost> findByUserIdInAndIdLessThanOrderByIdDesc(Collection<String> userIds, Long before, Limit limit);
+    List<Repost> findByUserIdInAndPostUserIdNotInAndIdLessThanOrderByIdDesc(Collection<String> userIds,
+                                                                            Collection<String> hiddenUserIds, Long before,
+                                                                            Limit limit);
 
     /** 投稿ごとのリポスト数。1ページ分の投稿をまとめて数える */
     @Query("select r.post.id, count(r) from Repost r where r.post.id in :postIds group by r.post.id")

@@ -1,6 +1,7 @@
 package com.snsapp.api.post;
 
 import com.snsapp.api.auth.CurrentUser;
+import com.snsapp.api.block.Visibility;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.ImageFiles;
@@ -54,6 +55,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -86,10 +88,13 @@ public class PostController {
     private final CurrentUser currentUser;
     private final RateLimiter rateLimiter;
     private final ImageStorage imageStorage;
+    private final Visibility visibility;
 
     public PostController(PostRepository postRepository, PostLikeRepository likeRepository,
                           FollowRepository followRepository, UserRepository userRepository, PostViews postViews,
-                          CurrentUser currentUser, RateLimiter rateLimiter, ImageStorage imageStorage) {
+                          CurrentUser currentUser, RateLimiter rateLimiter, ImageStorage imageStorage,
+                          Visibility visibility) {
+        this.visibility = visibility;
         this.postRepository = postRepository;
         this.likeRepository = likeRepository;
         this.followRepository = followRepository;
@@ -110,9 +115,11 @@ public class PostController {
             @RequestParam(required = false) Long before, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         Limit limit = Limit.of(PAGE_SIZE + 1);
+        // ブロック・ミュートしている人の投稿は出さない(F-20)
+        Set<String> hidden = visibility.hidden(userId);
         return postViews.page(before == null
-                ? postRepository.findByOrderByIdDesc(limit)
-                : postRepository.findByIdLessThanOrderByIdDesc(before, limit), userId);
+                ? postRepository.findByUserIdNotInOrderByIdDesc(hidden, limit)
+                : postRepository.findByUserIdNotInAndIdLessThanOrderByIdDesc(hidden, before, limit), userId);
     }
 
     /**
@@ -142,8 +149,10 @@ public class PostController {
             @Parameter(description = "画面に出ている一番新しい投稿の ID") @RequestParam long after,
             HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        return newPostsOf(postRepository.findByIdGreaterThanAndUserIdNotOrderByIdDesc(
-                after, userId, Limit.of(NEW_POSTS_MAX)));
+        Set<String> excluded = visibility.hidden(userId);
+        excluded.add(userId);
+        return newPostsOf(postRepository.findByIdGreaterThanAndUserIdNotInOrderByIdDesc(
+                after, excluded, Limit.of(NEW_POSTS_MAX)));
     }
 
     /** ホームタイムラインの新着: フォロー中の人の新しい投稿(自分の投稿とリポストは数えない) */
@@ -155,7 +164,8 @@ public class PostController {
             @Parameter(description = "画面に出ている一番新しい投稿の ID") @RequestParam long after,
             HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        List<String> followees = followRepository.findFolloweeIds(userId);
+        List<String> followees = new ArrayList<>(followRepository.findFolloweeIds(userId));
+        followees.removeAll(visibility.hidden(userId));
         if (followees.isEmpty()) {
             return new NewPostsResponse(0, List.of());
         }
@@ -174,6 +184,8 @@ public class PostController {
 
     private List<String> authorsOfHome(String userId) {
         List<String> authorIds = new ArrayList<>(followRepository.findFolloweeIds(userId));
+        // ミュートしてもフォローは続くので、ホームからはここで外す
+        authorIds.removeAll(visibility.hidden(userId));
         authorIds.add(userId);
         return authorIds;
     }
@@ -183,7 +195,7 @@ public class PostController {
     @GetMapping("/posts/{id}")
     public PostResponse show(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        return postViews.one(findPost(id), userId);
+        return postViews.one(findPost(id, userId), userId);
     }
 
     @Operation(operationId = "createPost", summary = "投稿する",
@@ -326,7 +338,7 @@ public class PostController {
     @PostMapping("/posts/{id}/like")
     public LikeResponse like(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        Post post = findPost(id);
+        Post post = findPost(id, userId);
         if (!likeRepository.existsByUserIdAndPostId(userId, id)) {
             try {
                 likeRepository.saveAndFlush(new PostLike(userRepository.getReferenceById(userId), post));
@@ -344,13 +356,15 @@ public class PostController {
     @DeleteMapping("/posts/{id}/like")
     public LikeResponse unlike(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        findPost(id);
+        findPost(id, userId);
         likeRepository.deleteByUserIdAndPostId(userId, id);
         return new LikeResponse(false, likeRepository.countByPostId(id));
     }
 
-    public Post findPost(Long id) {
+    /** 見る人から見える投稿。ブロックしている・されている人の投稿は、無いのと同じく 404(F-20) */
+    public Post findPost(Long id, String viewerId) {
         return postRepository.findWithUserById(id)
+                .filter(post -> !visibility.blockedBetween(viewerId, post.getUser().getId()))
                 .orElseThrow(() -> ApiException.notFound("投稿が見つかりません: " + id));
     }
 

@@ -31,6 +31,9 @@ export type Profile = PublicUser & {
   followersCount: number;
   followedByMe: boolean;
   createdAt: string;
+  /** 自分がこの人をブロック・ミュートしているか(F-20) */
+  blocking: boolean;
+  muting: boolean;
 };
 
 export type Post = {

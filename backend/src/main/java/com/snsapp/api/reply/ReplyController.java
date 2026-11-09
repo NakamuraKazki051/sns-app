@@ -1,6 +1,7 @@
 package com.snsapp.api.reply;
 
 import com.snsapp.api.auth.CurrentUser;
+import com.snsapp.api.block.Visibility;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.OpenApiConfig;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api")
@@ -52,9 +54,12 @@ public class ReplyController {
     private final PostController postController;
     private final CurrentUser currentUser;
     private final RateLimiter rateLimiter;
+    private final Visibility visibility;
 
     public ReplyController(ReplyRepository replyRepository, UserRepository userRepository,
-                           PostController postController, CurrentUser currentUser, RateLimiter rateLimiter) {
+                           PostController postController, CurrentUser currentUser, RateLimiter rateLimiter,
+                           Visibility visibility) {
+        this.visibility = visibility;
         this.replyRepository = replyRepository;
         this.userRepository = userRepository;
         this.postController = postController;
@@ -71,12 +76,14 @@ public class ReplyController {
                           @Parameter(description = "前のページの最後のリプライの ID。これより新しいものから読む")
                           @RequestParam(required = false) Long after,
                           HttpServletRequest httpRequest) {
-        currentUser.require(httpRequest);
-        postController.findPost(postId);
+        String userId = currentUser.require(httpRequest);
+        postController.findPost(postId, userId);
+        // ブロック・ミュートしている人のリプライは出さない(F-20)
+        Set<String> hidden = visibility.hidden(userId);
         Limit limit = Limit.of(PAGE_SIZE + 1);
         List<Reply> fetched = after == null
-                ? replyRepository.findByPostIdOrderByIdAsc(postId, limit)
-                : replyRepository.findByPostIdAndIdGreaterThanOrderByIdAsc(postId, after, limit);
+                ? replyRepository.findByPostIdAndUserIdNotInOrderByIdAsc(postId, hidden, limit)
+                : replyRepository.findByPostIdAndUserIdNotInAndIdGreaterThanOrderByIdAsc(postId, hidden, after, limit);
         return new ReplyPage(fetched.stream().limit(PAGE_SIZE).map(ReplyResponse::from).toList(),
                 fetched.size() > PAGE_SIZE);
     }
@@ -89,7 +96,7 @@ public class ReplyController {
     public ReplyResponse create(@PathVariable Long postId, @RequestBody CreateRequest request,
                                 HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        Post post = postController.findPost(postId);
+        Post post = postController.findPost(postId, userId);
         String body = PostController.bodyValue(request.body(), "リプライ");
         // 入力の確認が済んでから回数に数える(空のリプライで弾かれた分は数えない)
         if (!rateLimiter.tryAcquire("reply:" + userId, PostController.POSTS_PER_WINDOW, PostController.POST_WINDOW)) {

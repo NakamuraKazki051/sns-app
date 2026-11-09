@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,6 +31,7 @@ public interface UserRepository extends JpaRepository<User, String> {
      * pattern は %〜% で囲み、% と _ と \ をエスケープ済みのもの。メールの確認が済んでいない登録は出さない
      */
     @Query("select u from User u where (u.username like :pattern escape '\\' or u.displayName like :pattern escape '\\')"
-            + " and u.emailVerifiedAt is not null and u.username > :after order by u.username")
-    List<User> search(@Param("pattern") String pattern, @Param("after") String after, Limit limit);
+            + " and u.emailVerifiedAt is not null and u.username > :after and u.id not in :hidden order by u.username")
+    List<User> search(@Param("pattern") String pattern, @Param("after") String after,
+                      @Param("hidden") Collection<String> hidden, Limit limit);
 }

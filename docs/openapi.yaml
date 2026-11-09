@@ -264,6 +264,28 @@ paths:
       summary: メールアドレスの確認
       tags:
       - 認証
+  /api/me/blocks:
+    get:
+      description: 新しくブロックした順に200人まで
+      operationId: listBlocks
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserSummary"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: ブロック中の人
+      tags:
+      - ユーザー
   /api/me/icon:
     delete:
       description: 表示名の頭文字の丸に戻る
@@ -326,6 +348,28 @@ paths:
       summary: アイコンを変える
       tags:
       - 自分の設定
+  /api/me/mutes:
+    get:
+      description: 新しくミュートした順に200人まで
+      operationId: listMutes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserSummary"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: ミュート中の人
+      tags:
+      - ユーザー
   /api/me/profile:
     patch:
       description: 送った項目だけ変える。表示名は50字まで。自己紹介は160字まで(絵文字も1字と数える)で、空にすると消える
@@ -1149,6 +1193,75 @@ paths:
       summary: ユーザーページの情報
       tags:
       - ユーザー
+  /api/users/{username}/block:
+    delete:
+      description: 外れたフォローは戻らない
+      operationId: unblock
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: ブロックを解除する
+      tags:
+      - ユーザー
+    post:
+      description: お互いのフォローを外し、お互いの投稿・リプライ・プロフィールが見えなくなる。相手はフォロー・リプライ・いいね・リポストができない。自分はブロックできない(400)
+      operationId: block
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: ブロックする
+      tags:
+      - ユーザー
   /api/users/{username}/follow:
     delete:
       description: フォローしていなければ何も変わらない
@@ -1344,6 +1457,74 @@ paths:
       summary: アイコン画像
       tags:
       - ユーザー
+  /api/users/{username}/mute:
+    delete:
+      operationId: unmute
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MuteResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: ミュートを解除する
+      tags:
+      - ユーザー
+    post:
+      description: 自分のタイムライン・新着・リプライ一覧に出なくなる。相手には分からない。自分はミュートできない(400)
+      operationId: mute
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MuteResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: ミュートする
+      tags:
+      - ユーザー
   /api/users/{username}/posts:
     get:
       description: 新しい順に20件
@@ -1402,6 +1583,11 @@ components:
         timestamp:
           type: string
           format: date-time
+    BlockResponse:
+      type: object
+      properties:
+        blocking:
+          type: boolean
     CreateRequest:
       type: object
       properties:
@@ -1486,6 +1672,11 @@ components:
       required:
       - email
       - password
+    MuteResponse:
+      type: object
+      properties:
+        muting:
+          type: boolean
     NewPostsResponse:
       type: object
       properties:
@@ -1562,6 +1753,9 @@ components:
           - string
           - "null"
           description: 自己紹介。無ければ null
+        blocking:
+          type: boolean
+          description: 自分がこの人をブロックしているか(F-20)
         createdAt:
           type: string
           format: date-time
@@ -1583,6 +1777,9 @@ components:
           description: アイコンを変えた時刻。アイコンが無ければ null
         id:
           type: string
+        muting:
+          type: boolean
+          description: 自分がこの人をミュートしているか(F-20)
         postsCount:
           type: integer
           format: int64

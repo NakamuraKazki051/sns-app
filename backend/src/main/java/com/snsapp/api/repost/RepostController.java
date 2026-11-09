@@ -44,7 +44,7 @@ public class RepostController {
     @PostMapping("/posts/{id}/repost")
     public RepostResponse repost(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        Post post = postController.findPost(id);
+        Post post = postController.findPost(id, userId);
         if (post.getUser().getId().equals(userId)) {
             throw ApiException.badRequest("自分の投稿はリポストできません");
         }
@@ -65,7 +65,7 @@ public class RepostController {
     @DeleteMapping("/posts/{id}/repost")
     public RepostResponse unrepost(@PathVariable Long id, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        postController.findPost(id);
+        postController.findPost(id, userId);
         repostRepository.deleteByUserIdAndPostId(userId, id);
         return new RepostResponse(false, repostRepository.countByPostId(id));
     }

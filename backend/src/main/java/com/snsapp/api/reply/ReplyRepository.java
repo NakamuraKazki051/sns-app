@@ -14,10 +14,11 @@ import java.util.List;
 public interface ReplyRepository extends JpaRepository<Reply, Long> {
 
     @EntityGraph(attributePaths = "user")
-    List<Reply> findByPostIdOrderByIdAsc(Long postId, Limit limit);
+    List<Reply> findByPostIdAndUserIdNotInOrderByIdAsc(Long postId, Collection<String> hiddenUserIds, Limit limit);
 
     @EntityGraph(attributePaths = "user")
-    List<Reply> findByPostIdAndIdGreaterThanOrderByIdAsc(Long postId, Long after, Limit limit);
+    List<Reply> findByPostIdAndUserIdNotInAndIdGreaterThanOrderByIdAsc(Long postId, Collection<String> hiddenUserIds,
+                                                                       Long after, Limit limit);
 
     /** 投稿ごとのリプライ数。1ページ分の投稿をまとめて数える */
     @Query("select r.post.id, count(r) from Reply r where r.post.id in :postIds group by r.post.id")
