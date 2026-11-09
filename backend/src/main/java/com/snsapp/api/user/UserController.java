@@ -1,6 +1,9 @@
 package com.snsapp.api.user;
 
 import com.snsapp.api.auth.CurrentUser;
+import com.snsapp.api.block.BlockRepository;
+import com.snsapp.api.block.MuteRepository;
+import com.snsapp.api.block.Visibility;
 import com.snsapp.api.auth.EmailVerificationService;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
@@ -45,6 +48,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 @RestController
@@ -58,6 +62,9 @@ public class UserController {
     // 検索語はユーザー名(15字)・表示名(50字)の一部なので、それより長いものは探しても見つからない
     static final int QUERY_MAX = 50;
 
+    // アイコンはキャッシュするので、見る人によって変えない(ブロックしていても一覧のアイコンは出る)
+    private static final String NO_VIEWER = "-";
+
     private static final int EMAIL_CHANGES = 3;
     private static final Duration EMAIL_CHANGE_WINDOW = Duration.ofHours(1);
 
@@ -70,11 +77,18 @@ public class UserController {
     private final CurrentUser currentUser;
     private final EmailVerificationService emailVerification;
     private final RateLimiter rateLimiter;
+    private final Visibility visibility;
+    private final BlockRepository blockRepository;
+    private final MuteRepository muteRepository;
 
     public UserController(UserRepository userRepository, UserIconRepository userIconRepository,
                           PostRepository postRepository, FollowRepository followRepository, PostViews postViews,
                           PasswordEncoder passwordEncoder, CurrentUser currentUser,
-                          EmailVerificationService emailVerification, RateLimiter rateLimiter) {
+                          EmailVerificationService emailVerification, RateLimiter rateLimiter,
+                          Visibility visibility, BlockRepository blockRepository, MuteRepository muteRepository) {
+        this.visibility = visibility;
+        this.blockRepository = blockRepository;
+        this.muteRepository = muteRepository;
         this.userRepository = userRepository;
         this.userIconRepository = userIconRepository;
         this.postRepository = postRepository;
@@ -95,7 +109,7 @@ public class UserController {
             @Parameter(description = "検索語(50文字まで)。空なら結果も空") @RequestParam(defaultValue = "") String q,
             @Parameter(description = "前のページの nextCursor") @RequestParam(defaultValue = "") String after,
                            HttpServletRequest httpRequest) {
-        currentUser.require(httpRequest);
+        String viewer = currentUser.require(httpRequest);
         String query = q.strip();
         if (query.isEmpty()) {
             return new UserPage(List.of(), null);
@@ -105,7 +119,8 @@ public class UserController {
         }
         // % や _ をそのまま探せるよう、LIKE の特殊文字をエスケープする
         String pattern = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
-        List<User> fetched = userRepository.search(pattern, after, Limit.of(PAGE_SIZE + 1));
+        // ブロックしている・されている人は出さない(F-20)
+        List<User> fetched = userRepository.search(pattern, after, visibility.blockRelated(viewer), Limit.of(PAGE_SIZE + 1));
         return toUserPage(fetched, Function.identity(), User::getUsername);
     }
 
@@ -116,11 +131,13 @@ public class UserController {
     @GetMapping("/{username}")
     public ProfileResponse show(@PathVariable String username, HttpServletRequest httpRequest) {
         String viewerId = currentUser.require(httpRequest);
-        User user = findUser(username);
+        User user = findUser(username, viewerId);
         return new ProfileResponse(user.getId(), user.getUsername(), user.getDisplayName(), user.getIconUpdatedAt(),
                 user.getBio(), postRepository.countByUserId(user.getId()),
                 followRepository.countByFollowerId(user.getId()), followRepository.countByFolloweeId(user.getId()),
-                followRepository.existsByFollowerIdAndFolloweeId(viewerId, user.getId()), user.getCreatedAt());
+                followRepository.existsByFollowerIdAndFolloweeId(viewerId, user.getId()), user.getCreatedAt(),
+                blockRepository.existsByBlockerIdAndBlockedId(viewerId, user.getId()),
+                muteRepository.existsByMuterIdAndMutedId(viewerId, user.getId()));
     }
 
     /** その人の投稿とリポストの一覧。before には前のページの nextCursor を渡す */
@@ -133,7 +150,11 @@ public class UserController {
                               @RequestParam(required = false) String before,
                               HttpServletRequest httpRequest) {
         String viewerId = currentUser.require(httpRequest);
-        User user = findUser(username);
+        User user = findUser(username, viewerId);
+        // 自分がブロックしている人のページは開けるが、投稿は出さない(F-20)
+        if (blockRepository.existsByBlockerIdAndBlockedId(viewerId, user.getId())) {
+            return new PageResponse(List.of(), false, null);
+        }
         return postViews.feedOf(List.of(user.getId()), before, viewerId);
     }
 
@@ -144,9 +165,12 @@ public class UserController {
     @PostMapping("/{username}/follow")
     public FollowResponse follow(@PathVariable String username, HttpServletRequest httpRequest) {
         String viewerId = currentUser.require(httpRequest);
-        User user = findUser(username);
+        User user = findUser(username, viewerId);
         if (user.getId().equals(viewerId)) {
             throw ApiException.badRequest("自分自身はフォローできません");
+        }
+        if (blockRepository.existsByBlockerIdAndBlockedId(viewerId, user.getId())) {
+            throw ApiException.badRequest("ブロック中のユーザーはフォローできません。先にブロックを解除してください");
         }
         if (!followRepository.existsByFollowerIdAndFolloweeId(viewerId, user.getId())) {
             try {
@@ -165,7 +189,7 @@ public class UserController {
     @DeleteMapping("/{username}/follow")
     public FollowResponse unfollow(@PathVariable String username, HttpServletRequest httpRequest) {
         String viewerId = currentUser.require(httpRequest);
-        User user = findUser(username);
+        User user = findUser(username, viewerId);
         followRepository.deleteByFollowerIdAndFolloweeId(viewerId, user.getId());
         return new FollowResponse(false, followRepository.countByFolloweeId(user.getId()));
     }
@@ -178,12 +202,13 @@ public class UserController {
     public UserPage following(@PathVariable String username,
                               @Parameter(description = "前のページの nextCursor") @RequestParam(required = false) Long before,
                               HttpServletRequest httpRequest) {
-        currentUser.require(httpRequest);
-        User user = findUser(username);
+        String viewer = currentUser.require(httpRequest);
+        User user = findUser(username, viewer);
+        Set<String> hidden = visibility.blockRelated(viewer);
         Limit limit = Limit.of(PAGE_SIZE + 1);
         List<Follow> fetched = before == null
-                ? followRepository.findByFollowerIdOrderByIdDesc(user.getId(), limit)
-                : followRepository.findByFollowerIdAndIdLessThanOrderByIdDesc(user.getId(), before, limit);
+                ? followRepository.findByFollowerIdAndFolloweeIdNotInOrderByIdDesc(user.getId(), hidden, limit)
+                : followRepository.findByFollowerIdAndFolloweeIdNotInAndIdLessThanOrderByIdDesc(user.getId(), hidden, before, limit);
         return toUserPage(fetched, Follow::getFollowee, f -> f.getId().toString());
     }
 
@@ -195,12 +220,13 @@ public class UserController {
     public UserPage followers(@PathVariable String username,
                               @Parameter(description = "前のページの nextCursor") @RequestParam(required = false) Long before,
                               HttpServletRequest httpRequest) {
-        currentUser.require(httpRequest);
-        User user = findUser(username);
+        String viewer = currentUser.require(httpRequest);
+        User user = findUser(username, viewer);
+        Set<String> hidden = visibility.blockRelated(viewer);
         Limit limit = Limit.of(PAGE_SIZE + 1);
         List<Follow> fetched = before == null
-                ? followRepository.findByFolloweeIdOrderByIdDesc(user.getId(), limit)
-                : followRepository.findByFolloweeIdAndIdLessThanOrderByIdDesc(user.getId(), before, limit);
+                ? followRepository.findByFolloweeIdAndFollowerIdNotInOrderByIdDesc(user.getId(), hidden, limit)
+                : followRepository.findByFolloweeIdAndFollowerIdNotInAndIdLessThanOrderByIdDesc(user.getId(), hidden, before, limit);
         return toUserPage(fetched, Follow::getFollower, f -> f.getId().toString());
     }
 
@@ -213,7 +239,7 @@ public class UserController {
     @GetMapping("/{username}/icon")
     public ResponseEntity<byte[]> icon(@PathVariable String username, HttpServletRequest httpRequest) {
         currentUser.require(httpRequest);
-        UserIcon icon = userIconRepository.findById(findUser(username).getId())
+        UserIcon icon = userIconRepository.findById(findUser(username, NO_VIEWER).getId())
                 .orElseThrow(() -> ApiException.notFound("アイコンが設定されていません: @" + username));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(icon.getContentType()))
@@ -277,9 +303,11 @@ public class UserController {
 
     // ユーザー名は大文字・小文字を区別しない(DB の照合順序による)。
     // メールの確認が済んでいない登録はいないものとして扱う。フォローされると、期限切れの登録を消せなくなる
-    private User findUser(String username) {
+    // 自分をブロックしている人も、いないものとして扱う(F-20)。自分がブロックしている人は、解除できるよう見える
+    private User findUser(String username, String viewerId) {
         return (username.matches(User.USERNAME_PATTERN) ? userRepository.findByUsername(username) : Optional.<User>empty())
                 .filter(User::isEmailVerified)
+                .filter(user -> !blockRepository.existsByBlockerIdAndBlockedId(user.getId(), viewerId))
                 .orElseThrow(() -> ApiException.notFound("ユーザーが見つかりません: @" + username));
     }
 

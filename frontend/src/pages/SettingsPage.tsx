@@ -5,7 +5,8 @@ import { Avatar } from "../components/Avatar";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useFeedback } from "../feedback";
 import { BIO_MAX, countChars, DISPLAY_NAME_MAX, displayNameLength } from "../text";
-import type { Me } from "../types";
+import type { Me, PublicUser } from "../types";
+import { Link } from "react-router";
 
 const ICON_MAX_BYTES = 1024 * 1024;
 
@@ -16,8 +17,60 @@ export function SettingsPage() {
       <ProfileForm />
       <EmailForm />
       <PasswordForm />
+      <RelationList kind="mutes" />
+      <RelationList kind="blocks" />
       <DeleteAccountForm />
     </>
+  );
+}
+
+/** ミュート中・ブロック中の人(F-20)。ここから解除できる */
+function RelationList({ kind }: { kind: "mutes" | "blocks" }) {
+  const { showError } = useFeedback();
+  const [users, setUsers] = useState<PublicUser[] | null>(null);
+  const label = kind === "mutes" ? "ミュート" : "ブロック";
+
+  useEffect(() => {
+    let cancelled = false;
+    api<PublicUser[]>(`/api/me/${kind}`)
+      .then((list) => !cancelled && setUsers(list ?? []))
+      .catch(() => !cancelled && setUsers([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [kind]);
+
+  async function release(user: PublicUser) {
+    try {
+      await api(`/api/users/${user.username}/${kind === "mutes" ? "mute" : "block"}`, { method: "DELETE" });
+      setUsers((list) => (list ?? []).filter((u) => u.id !== user.id));
+    } catch (e) {
+      showError(errorMessage(e));
+    }
+  }
+
+  return (
+    <section className="card form">
+      <h3>{label}中のユーザー</h3>
+      {users === null ? (
+        <p className="muted">読み込み中…</p>
+      ) : users.length === 0 ? (
+        <p className="muted">{label}中のユーザーはいません</p>
+      ) : (
+        <ul className="relation-list">
+          {users.map((user) => (
+            <li key={user.id}>
+              <Link to={`/@${user.username}`}>
+                {user.displayName} <span className="muted">@{user.username}</span>
+              </Link>
+              <button type="button" className="button" onClick={() => release(user)}>
+                {label}を解除
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

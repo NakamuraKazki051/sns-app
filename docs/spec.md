@@ -25,6 +25,7 @@
 | F-17 | アカウントの削除 | 済（2026-11-09 追加） |
 | F-18 | パスワードの再設定 | 済（2026-11-09 追加） |
 | F-19 | 投稿の編集 | 済（2026-11-09 追加） |
+| F-20 | ブロック・ミュート | 済（2026-11-09 追加） |
 
 ## 2. 共通の決まり
 
@@ -210,6 +211,26 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | PUT | `/api/me/icon` | multipart の `icon`（JPEG・PNG、1MB まで。形式はファイルの先頭のバイトで判定） | 本人の情報 | 400、413 |
 | DELETE | `/api/me/icon` | ― | 本人の情報（`iconUpdatedAt: null`） | ― |
 
+### 4.6 ブロック・ミュート（F-20）
+
+| メソッド | パス | 返すもの | エラー |
+| --- | --- | --- | --- |
+| POST / DELETE | `/api/users/{username}/block` | `{ "blocking": true/false }`。何度押しても同じ。ブロックするとお互いのフォローを外す（解除しても戻らない） | 400（自分）、404 |
+| POST / DELETE | `/api/users/{username}/mute` | `{ "muting": true/false }`。何度押しても同じ | 400（自分）、404 |
+| GET | `/api/me/blocks`、`/api/me/mutes` | ブロック中・ミュート中の人（新しい順に200人まで） | ― |
+
+| 見えなくなるもの | ブロック（している・されている、どちらも） | ミュート（自分がした人だけ） |
+| --- | --- | --- |
+| 全体・ホームタイムライン、新着の数、リプライ一覧 | 出さない | 出さない |
+| その人の投稿のリポスト（他の人がしたもの） | 出さない | 出さない |
+| 投稿の詳細・いいね・リポスト・リプライ | 404 | できる |
+| プロフィール | ブロックされた側は 404。した側は開けるが投稿は出さず、フォローできない（400） | 開ける（`muting: true`） |
+| ユーザー検索・フォロー一覧 | 出さない | 出す |
+
+- 除くのは DB に問い合わせる段階（`NOT IN`）。読んだあとで減らすと、1ページが20件に満たなくなる（`Visibility`）
+- アイコン画像はキャッシュするので、見る人によって変えない
+- プロフィールに `blocking`・`muting` を返す。相手が自分をブロックしているかは返さない（404 になるだけ）
+
 ## 5. データ
 
 | テーブル | 主な列 | 制約・インデックス |
@@ -217,6 +238,8 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | users | id（UUID）, email, password_hash, username, display_name, bio, icon_updated_at, created_at, email_verified_at, token_version | email・username に一意制約。token_version はログインの JWT の世代（`V5`） |
 | revoked_sessions | session_id（主キー、JWT の sid）, expires_at | ログアウトしたログイン。期限を過ぎた行はログアウトのたびに消す（`V5__token_revocation.sql`） |
 | password_resets | token_hash（主キー、SHA-256）, user_id, expires_at | (user_id)。アカウントを消すと一緒に消える（`V6__password_resets.sql`） |
+| blocks | id, blocker_id, blocked_id, created_at | (blocker_id, blocked_id) に一意制約、(blocked_id)。どちらのユーザーを消しても一緒に消える（`V8__blocks_mutes.sql`） |
+| mutes | id, muter_id, muted_id, created_at | (muter_id, muted_id) に一意制約。どちらのユーザーを消しても一緒に消える |
 | user_icons | user_id（主キー）, content_type, data（MEDIUMBLOB）, updated_at | 1人1枚 |
 | posts | id（連番）, user_id, body, created_at, image_*, edited_at | (user_id, id)。edited_at は本文を最後に直した時刻（`V7__post_edits.sql`） |
 | replies | id（連番）, post_id, user_id, body, created_at | (post_id, id)。投稿を消すと DB が一緒に消す（ON DELETE CASCADE） |

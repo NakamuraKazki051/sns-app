@@ -89,7 +89,9 @@ public class UserDtos {
                                   @Schema(types = {"string", "null"}, format = "date-time", description = "アイコンを変えた時刻。アイコンが無ければ null") Instant iconUpdatedAt,
                                   @Schema(types = {"string", "null"}, description = "自己紹介。無ければ null") String bio,
                                   long postsCount, long followingCount, long followersCount, boolean followedByMe,
-                                  Instant createdAt) {
+                                  Instant createdAt,
+                                  @Schema(description = "自分がこの人をブロックしているか(F-20)") boolean blocking,
+                                  @Schema(description = "自分がこの人をミュートしているか(F-20)") boolean muting) {
     }
 
     /** フォロー・解除の結果 */

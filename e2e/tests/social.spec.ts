@@ -161,3 +161,42 @@ test("自分の投稿の本文を直すと、ほかの人にも直した本文�
   await expect(postRow(viewer, after).getByText("(編集済み)")).toBeVisible();
   await expect(viewer.getByText(before)).toHaveCount(0);
 });
+
+test("ミュートするとタイムラインから消え、ブロックするとお互いに見えなくなる", async ({ session }) => {
+  const mia = newAccount("mia");
+  const nick = newAccount("nick");
+  const page = await signUp(session, mia);
+  const other = await signUp(session, nick);
+  const text = uniqueText("nick の投稿");
+  await writePost(other, text);
+
+  await page.reload();
+  await page.getByRole("tab", { name: "みんな" }).click();
+  await expect(postRow(page, text)).toBeVisible();
+
+  await page.goto(`/@${nick.username}`);
+  await page.getByRole("button", { name: "ミュート", exact: true }).click();
+  await expect(page.getByRole("button", { name: "ミュート中" })).toBeVisible();
+  await page.goto("/");
+  await page.getByRole("tab", { name: "みんな" }).click();
+  await expect(page.getByText("まだ投稿がありません").or(page.locator("li.post").first())).toBeVisible();
+  await expect(postRow(page, text)).toHaveCount(0);
+
+  await page.goto(`/@${nick.username}`);
+  await page.getByRole("button", { name: "ブロック", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "ブロックする" }).click();
+  await expect(page.getByRole("button", { name: "ブロック中" })).toBeVisible();
+  await expect(page.getByText("ブロック中のため、投稿は表示しません")).toBeVisible();
+
+  await other.goto(`/@${mia.username}`);
+  await expect(other.getByText(`ユーザーが見つかりません: @${mia.username}`)).toBeVisible();
+
+  // 設定画面から解除できる
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "ブロックを解除" }).click();
+  await page.getByRole("button", { name: "ミュートを解除" }).click();
+  await expect(page.getByText("ブロック中のユーザーはいません")).toBeVisible();
+  await expect(page.getByText("ミュート中のユーザーはいません")).toBeVisible();
+  await other.reload();
+  await expect(other.getByRole("heading", { name: mia.displayName })).toBeVisible();
+});

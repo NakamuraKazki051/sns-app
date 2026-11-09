@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router";
 import { api, ApiError, errorMessage } from "../api";
 import { useMe } from "../auth";
 import { Avatar } from "../components/Avatar";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { LoadFailed } from "../components/LoadFailed";
 import { PostList } from "../components/PostList";
 import { useFeedback } from "../feedback";
@@ -33,8 +34,12 @@ function UserPageContent({ username }: { username: string }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [following, setFollowing] = useState(false);
+  // ブロック・ミュート(F-20)。ブロックを変えたら、投稿の一覧も読み直す
+  const [relating, setRelating] = useState(false);
+  const [confirmingBlock, setConfirmingBlock] = useState(false);
+  const [version, setVersion] = useState(0);
   const postsPath = `/api/users/${username}/posts`;
-  const posts = usePaged<Post>(postsPath, loadPosts(postsPath), postKey);
+  const posts = usePaged<Post>(`${postsPath}#${version}`, loadPosts(postsPath), postKey);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +78,37 @@ function UserPageContent({ username }: { username: string }) {
     }
   }
 
+  async function toggleMute() {
+    if (!profile || relating) return;
+    setRelating(true);
+    try {
+      const result = await api<{ muting: boolean }>(`/api/users/${profile.username}/mute`, {
+        method: profile.muting ? "DELETE" : "POST",
+      });
+      setProfile({ ...profile, muting: result.muting });
+    } catch (e) {
+      showError(errorMessage(e));
+    } finally {
+      setRelating(false);
+    }
+  }
+
+  async function changeBlock(block: boolean) {
+    if (!profile || relating) return;
+    setConfirmingBlock(false);
+    setRelating(true);
+    try {
+      await api<{ blocking: boolean }>(`/api/users/${profile.username}/block`, { method: block ? "POST" : "DELETE" });
+      // フォローが外れて数も変わるので、プロフィールと投稿を読み直す
+      setAttempt((n) => n + 1);
+      setVersion((n) => n + 1);
+    } catch (e) {
+      showError(errorMessage(e));
+    } finally {
+      setRelating(false);
+    }
+  }
+
   return (
     <>
       <div className="card profile">
@@ -83,17 +119,42 @@ function UserPageContent({ username }: { username: string }) {
               プロフィールを編集
             </Link>
           ) : (
-            <button
-              type="button"
-              className={profile.followedByMe ? "button following" : "button primary"}
-              disabled={following}
-              onClick={toggleFollow}
-              aria-pressed={profile.followedByMe}
-            >
-              {profile.followedByMe ? "フォロー中" : "フォローする"}
-            </button>
+            <div className="profile-buttons">
+              {!profile.blocking && (
+                <button
+                  type="button"
+                  className={profile.followedByMe ? "button following" : "button primary"}
+                  disabled={following}
+                  onClick={toggleFollow}
+                  aria-pressed={profile.followedByMe}
+                >
+                  {profile.followedByMe ? "フォロー中" : "フォローする"}
+                </button>
+              )}
+              <button type="button" className="button" disabled={relating} onClick={toggleMute} aria-pressed={profile.muting}>
+                {profile.muting ? "ミュート中" : "ミュート"}
+              </button>
+              <button
+                type="button"
+                className={profile.blocking ? "button danger" : "button"}
+                disabled={relating}
+                aria-pressed={profile.blocking}
+                onClick={() => (profile.blocking ? changeBlock(false) : setConfirmingBlock(true))}
+              >
+                {profile.blocking ? "ブロック中" : "ブロック"}
+              </button>
+            </div>
           )}
         </div>
+        {confirmingBlock && (
+          <ConfirmDialog
+            title={`@${profile.username} さんをブロックしますか？`}
+            message="お互いのフォローが外れ、お互いの投稿・リプライ・プロフィールが見えなくなります。"
+            confirmLabel="ブロックする"
+            onConfirm={() => changeBlock(true)}
+            onCancel={() => setConfirmingBlock(false)}
+          />
+        )}
         <h2>{profile.displayName}</h2>
         <p className="muted">@{profile.username}</p>
         {profile.bio && <p className="profile-bio">{profile.bio}</p>}
@@ -111,7 +172,7 @@ function UserPageContent({ username }: { username: string }) {
       </div>
       <PostList
         paged={posts}
-        emptyMessage="まだ投稿がありません"
+        emptyMessage={profile.blocking ? "ブロック中のため、投稿は表示しません" : "まだ投稿がありません"}
         // 他の人のページでも、その人がリポストした自分の投稿は消せる。その人の投稿数は変わらない
         onDeleted={() => {
           if (isMe) setProfile((p) => (p ? { ...p, postsCount: Math.max(0, p.postsCount - 1) } : p));

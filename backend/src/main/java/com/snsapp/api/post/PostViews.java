@@ -1,5 +1,6 @@
 package com.snsapp.api.post;
 
+import com.snsapp.api.block.Visibility;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.like.PostLikeRepository;
 import com.snsapp.api.post.PostDtos.PageResponse;
@@ -34,13 +35,15 @@ public class PostViews {
     private final PostLikeRepository likeRepository;
     private final ReplyRepository replyRepository;
     private final RepostRepository repostRepository;
+    private final Visibility visibility;
 
     public PostViews(PostRepository postRepository, PostLikeRepository likeRepository,
-                     ReplyRepository replyRepository, RepostRepository repostRepository) {
+                     ReplyRepository replyRepository, RepostRepository repostRepository, Visibility visibility) {
         this.postRepository = postRepository;
         this.likeRepository = likeRepository;
         this.replyRepository = replyRepository;
         this.repostRepository = repostRepository;
+        this.visibility = visibility;
     }
 
     /** タイムラインの1行: 投稿と、リポストとして出すならリポストした人 */
@@ -85,14 +88,17 @@ public class PostViews {
 
     /** この人たちの投稿とリポストを混ぜた1ページ(ホームタイムライン・ユーザーページ)。before は前のページの nextCursor */
     public PageResponse feedOf(Collection<String> userIds, String before, String viewerId) {
+        // ブロック・ミュートしている人の投稿をリポストしていても出さない(F-20)
+        Set<String> hidden = visibility.hidden(viewerId);
         FeedCursor cursor = FeedCursor.parse(before);
         Limit limit = Limit.of(PAGE_SIZE + 1);
         List<Post> posts = cursor.postBefore() == null
                 ? postRepository.findByUserIdInOrderByIdDesc(userIds, limit)
                 : postRepository.findByUserIdInAndIdLessThanOrderByIdDesc(userIds, cursor.postBefore(), limit);
         List<Repost> reposts = cursor.repostBefore() == null
-                ? repostRepository.findByUserIdInOrderByIdDesc(userIds, limit)
-                : repostRepository.findByUserIdInAndIdLessThanOrderByIdDesc(userIds, cursor.repostBefore(), limit);
+                ? repostRepository.findByUserIdInAndPostUserIdNotInOrderByIdDesc(userIds, hidden, limit)
+                : repostRepository.findByUserIdInAndPostUserIdNotInAndIdLessThanOrderByIdDesc(
+                        userIds, hidden, cursor.repostBefore(), limit);
         return feed(posts, reposts, cursor, viewerId);
     }
 

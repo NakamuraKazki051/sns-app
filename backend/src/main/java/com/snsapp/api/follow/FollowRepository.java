@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface FollowRepository extends JpaRepository<Follow, Long> {
@@ -24,17 +25,19 @@ public interface FollowRepository extends JpaRepository<Follow, Long> {
 
     /** フォロー中の一覧(新しくフォローした順) */
     @EntityGraph(attributePaths = "followee")
-    List<Follow> findByFollowerIdOrderByIdDesc(String followerId, Limit limit);
+    List<Follow> findByFollowerIdAndFolloweeIdNotInOrderByIdDesc(String followerId, Collection<String> hidden, Limit limit);
 
     @EntityGraph(attributePaths = "followee")
-    List<Follow> findByFollowerIdAndIdLessThanOrderByIdDesc(String followerId, Long before, Limit limit);
+    List<Follow> findByFollowerIdAndFolloweeIdNotInAndIdLessThanOrderByIdDesc(String followerId, Collection<String> hidden,
+                                                                              Long before, Limit limit);
 
     /** フォロワーの一覧(新しくフォローされた順) */
     @EntityGraph(attributePaths = "follower")
-    List<Follow> findByFolloweeIdOrderByIdDesc(String followeeId, Limit limit);
+    List<Follow> findByFolloweeIdAndFollowerIdNotInOrderByIdDesc(String followeeId, Collection<String> hidden, Limit limit);
 
     @EntityGraph(attributePaths = "follower")
-    List<Follow> findByFolloweeIdAndIdLessThanOrderByIdDesc(String followeeId, Long before, Limit limit);
+    List<Follow> findByFolloweeIdAndFollowerIdNotInAndIdLessThanOrderByIdDesc(String followeeId, Collection<String> hidden,
+                                                                              Long before, Limit limit);
 
     @Transactional
     @Modifying
