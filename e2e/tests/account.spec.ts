@@ -76,8 +76,7 @@ test("メールアドレスは確認リンクを開くまで変わらず、開�
   await logIn(page, { ...erin, email: newEmail });
 });
 
-// ログインは JWT で、サーバーは取り消せない。ほかの端末は期限(最後の操作から30分)まで使える
-test("パスワードを変えても、ほかの端末はそのまま使え、次のログインは新しいパスワードだけで入れる", async ({ session }) => {
+test("パスワードを変えると、ほかの端末のログインが切れ、新しいパスワードだけで入れる", async ({ session }) => {
   const frank = newAccount("frank");
   const page = await signUp(session, frank);
   const otherDevice = await session(frank);
@@ -92,10 +91,8 @@ test("パスワードを変えても、ほかの端末はそのまま使え、�
   await expect(page.getByText("パスワードを変更しました")).toBeVisible();
 
   await otherDevice.goto("/settings");
-  await expect(otherDevice).toHaveURL(/\/settings/);
-
-  await otherDevice.getByRole("button", { name: "ログアウト" }).click();
   await expect(otherDevice).toHaveURL(/\/login/);
+
   await submitLogin(otherDevice, frank.email, frank.password);
   await expect(otherDevice.getByRole("alert")).toBeVisible();
   await logIn(otherDevice, { ...frank, password: newPassword });

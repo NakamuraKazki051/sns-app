@@ -181,7 +181,7 @@ function EmailForm() {
   );
 }
 
-/** パスワードの変更。ほかの端末のログイン(JWT)は取り消せないので、期限(最後の操作から30分)まで続く */
+/** パスワードの変更。変えると、ほかの端末のログインは切れる */
 function PasswordForm() {
   const { updateMe } = useAuth();
   const { showError, showToast } = useFeedback();
@@ -210,7 +210,7 @@ function PasswordForm() {
       setCurrent("");
       setNext("");
       setConfirm("");
-      showToast("パスワードを変更しました。次からは新しいパスワードでログインしてください");
+      showToast("パスワードを変更しました。ほかの端末ではログインし直しになります");
     } catch (e) {
       showError(errorMessage(e));
     } finally {

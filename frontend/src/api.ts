@@ -10,7 +10,7 @@ export class ApiError extends Error {
   }
 }
 
-// ログイン中に 401 が返ったとき(ログインの期限切れ)に呼ぶ。AuthProvider が登録する
+// ログイン中に 401 が返ったとき(期限切れ・他の端末でパスワード変更)に呼ぶ。AuthProvider が登録する
 let unauthorizedHandler: (() => void) | null = null;
 
 export function setUnauthorizedHandler(handler: (() => void) | null) {

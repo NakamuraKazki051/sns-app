@@ -46,6 +46,10 @@ public class User {
     // メールアドレスを確認した時刻。確認が済むまで null で、ログインできない
     private Instant emailVerifiedAt;
 
+    // ログインの JWT の世代。進めると、それまでに渡した JWT がすべて使えなくなる(パスワードの変更など)
+    @Column(nullable = false)
+    private int tokenVersion;
+
     protected User() {
     }
 
@@ -95,6 +99,15 @@ public class User {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public int getTokenVersion() {
+        return tokenVersion;
+    }
+
+    /** それまでに渡したログインの JWT を、すべての端末で使えなくする */
+    public void revokeAllTokens() {
+        tokenVersion++;
     }
 
     public String getUsername() {
