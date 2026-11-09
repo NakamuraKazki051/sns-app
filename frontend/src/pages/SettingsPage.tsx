@@ -2,6 +2,7 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { api, errorMessage } from "../api";
 import { useAuth, useMe } from "../auth";
 import { Avatar } from "../components/Avatar";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useFeedback } from "../feedback";
 import { BIO_MAX, countChars, DISPLAY_NAME_MAX, displayNameLength } from "../text";
 import type { Me } from "../types";
@@ -15,7 +16,61 @@ export function SettingsPage() {
       <ProfileForm />
       <EmailForm />
       <PasswordForm />
+      <DeleteAccountForm />
     </>
+  );
+}
+
+/** アカウントの削除。パスワードを入れて、確認のダイアログでもう一度押す */
+function DeleteAccountForm() {
+  const { deleteAccount } = useAuth();
+  const { showError, showToast } = useFeedback();
+  const [password, setPassword] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  function ask(event: FormEvent) {
+    event.preventDefault();
+    if (!password) {
+      showError("パスワードを入力してください");
+      return;
+    }
+    setConfirming(true);
+  }
+
+  async function confirm() {
+    setConfirming(false);
+    setDeleting(true);
+    try {
+      await deleteAccount(password);
+      showToast("アカウントを削除しました");
+    } catch (e) {
+      showError(errorMessage(e));
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <form className="card form" onSubmit={ask} noValidate>
+      <h3>アカウントの削除</h3>
+      <p className="muted">投稿・リプライ・いいね・リポスト・フォロー・アイコンもすべて消え、元に戻せません。</p>
+      <label>
+        パスワード
+        <input name="deletePassword" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+      </label>
+      <button type="submit" className="button danger" disabled={deleting}>
+        アカウントを削除する
+      </button>
+      {confirming && (
+        <ConfirmDialog
+          title="アカウントを削除しますか？"
+          message="すべてのデータが消え、元に戻せません。"
+          confirmLabel="削除する"
+          onConfirm={confirm}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
+    </form>
   );
 }
 

@@ -113,3 +113,27 @@ test("ログアウトすると画面を開けず、ログインすると元の�
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("heading", { name: "設定" })).toBeVisible();
 });
+
+test("アカウントを削除すると、投稿も消え、同じパスワードでログインできない", async ({ session }) => {
+  const henry = newAccount("henry");
+  const page = await signUp(session, henry);
+  const text = uniqueText("henry の最後の投稿");
+  await writePost(page, text);
+  const viewer = await signUp(session, newAccount("ivy"));
+
+  await page.goto("/settings");
+  await page.locator("input[name=deletePassword]").fill(henry.password);
+  await page.getByRole("button", { name: "アカウントを削除する" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "削除する" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByText("アカウントを削除しました")).toBeVisible();
+
+  await submitLogin(page, henry.email, henry.password);
+  await expect(page.getByRole("alert")).toBeVisible();
+
+  await viewer.goto(`/@${henry.username}`);
+  await expect(viewer.getByText("ユーザーが見つかりません")).toBeVisible();
+  await viewer.goto("/");
+  await viewer.getByRole("tab", { name: "みんな" }).click();
+  await expect(viewer.getByText(text)).toHaveCount(0);
+});

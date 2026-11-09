@@ -17,6 +17,8 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (params: RegisterParams) => Promise<void>;
   logout: () => Promise<void>;
+  /** アカウントを削除して、ログイン画面へ戻る。パスワードが違えば ApiError を投げる */
+  deleteAccount: (password: string) => Promise<void>;
   /** 設定画面で表示名などを変えたあと、ヘッダーなどの表示を新しくする */
   updateMe: (me: Me) => void;
 };
@@ -81,9 +83,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const deleteAccount = useCallback(async (password: string) => {
+    await api<void>("/api/users/me", { method: "DELETE", body: { password } });
+    // 自分でログアウトしたときと同じく、戻り先を付けずにログイン画面へ
+    setSignedOut(true);
+    setMe(null);
+  }, []);
+
   const value = useMemo(
-    () => ({ me, loading, sessionExpired, signedOut, login, register, logout, updateMe: setMe }),
-    [me, loading, sessionExpired, signedOut, login, register, logout],
+    () => ({ me, loading, sessionExpired, signedOut, login, register, logout, deleteAccount, updateMe: setMe }),
+    [me, loading, sessionExpired, signedOut, login, register, logout, deleteAccount],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
