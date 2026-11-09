@@ -37,6 +37,12 @@ public class UserDtos {
     ) {
     }
 
+    public record DeleteAccountRequest(
+            @NotBlank(message = "パスワードを入力してください")
+            @Size(max = 72, message = "パスワードは72文字以内で入力してください") String password
+    ) {
+    }
+
     /** 送った項目だけ変える。自己紹介の160字は見た目の1文字で数えるので MeController で検証する */
     public record ProfileUpdateRequest(
             @Size(max = User.DISPLAY_NAME_MAX, message = "表示名は50文字以内で入力してください")

@@ -927,6 +927,39 @@ paths:
       tags:
       - ユーザー
   /api/users/me:
+    delete:
+      description: 今のパスワードが要る。投稿・リプライ・いいね・リポスト・フォロー・アイコン・投稿の画像も消え、元に戻せない。すべての端末でログアウトになる。5分に5回まで
+      operationId: deleteAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteAccountRequest"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      summary: アカウントを削除する
+      tags:
+      - ユーザー
     put:
       description: 現在のパスワードが要る。パスワードを変えると、他の端末はログアウトされる(次の操作で 401)。メールアドレスは、新しいアドレスに届く確認メールのリンクを開くまで変わらない(1時間に3回まで)
       operationId: updateAccount
@@ -1267,6 +1300,15 @@ components:
         body:
           type: string
           description: 本文。140字まで(絵文字も1字と数える)
+    DeleteAccountRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          maxLength: 72
+          minLength: 0
+      required:
+      - password
     FollowResponse:
       type: object
       properties:

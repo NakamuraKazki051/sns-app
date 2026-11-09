@@ -66,7 +66,7 @@ class OpenApiDocTest extends ApiTestSupport {
         }
         assertEquals(Set.of("POST /api/auth/register", "POST /api/auth/login", "POST /api/auth/logout",
                 "POST /api/auth/verify-email", "POST /api/auth/resend-verification"), publicApis);
-        assertEquals(28, needLogin);
+        assertEquals(29, needLogin);
     }
 
     /** 入力の確認で先に 400 にならないよう、仕様書の必須の項目を埋める */
