@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout";
 import { FollowListPage } from "./pages/FollowListPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordResetPages";
 import { PostPage } from "./pages/PostPage";
 import { SearchPage } from "./pages/SearchPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -12,7 +13,7 @@ import { UserPage } from "./pages/UserPage";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 
 /**
- * 画面の一覧。/login と /verify-email 以外はログインが必要(RequireAuth)。
+ * 画面の一覧。/login・/verify-email・/forgot-password・/reset-password 以外はログインが必要(RequireAuth)。
  * ユーザーページは /@ユーザー名。React Router は「@ + パラメーター」を書けないので、:handle で受けて @ を確かめる
  */
 export function App() {
@@ -20,6 +21,8 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route
         element={
           <RequireAuth>

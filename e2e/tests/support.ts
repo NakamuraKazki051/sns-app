@@ -58,8 +58,17 @@ export async function register(page: Page, account: Account) {
 }
 
 /** 確認メールの代わりに、アプリのログに出たリンクを読む。同じアドレスなら一番新しいもの */
-export async function verificationLink(email: string): Promise<string> {
-  const pattern = new RegExp(`${email.replace(/[.+]/g, "\\$&")} (http\\S+)`, "g");
+export function verificationLink(email: string): Promise<string> {
+  return linkInLog(email, "/verify-email");
+}
+
+/** パスワード再設定のメールの代わりに、アプリのログに出たリンクを読む */
+export function passwordResetLink(email: string): Promise<string> {
+  return linkInLog(email, "/reset-password");
+}
+
+async function linkInLog(email: string, path: string): Promise<string> {
+  const pattern = new RegExp(`${email.replace(/[.+]/g, "\\$&")} (http\\S+${path}\\?\\S+)`, "g");
   let link: string | undefined;
   await expect
     .poll(() => {

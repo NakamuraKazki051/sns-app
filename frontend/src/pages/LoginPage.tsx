@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useSearchParams } from "react-router";
+import { Link, Navigate, useSearchParams } from "react-router";
 import { api, ApiError, errorMessage } from "../api";
 import { useAuth } from "../auth";
 import { DISPLAY_NAME_MAX, displayNameLength, safeNext } from "../text";
@@ -175,6 +175,7 @@ export function LoginPage() {
         <button type="submit" className="button primary" disabled={sending}>
           {sending ? "送信中…" : mode === "login" ? "ログイン" : "登録してはじめる"}
         </button>
+        {mode === "login" && <Link to="/forgot-password">パスワードを忘れた方</Link>}
       </form>
     </main>
   );

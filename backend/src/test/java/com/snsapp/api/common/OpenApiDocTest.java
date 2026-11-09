@@ -65,7 +65,8 @@ class OpenApiDocTest extends ApiTestSupport {
             }
         }
         assertEquals(Set.of("POST /api/auth/register", "POST /api/auth/login", "POST /api/auth/logout",
-                "POST /api/auth/verify-email", "POST /api/auth/resend-verification"), publicApis);
+                "POST /api/auth/verify-email", "POST /api/auth/resend-verification",
+                "POST /api/auth/forgot-password", "POST /api/auth/reset-password"), publicApis);
         assertEquals(29, needLogin);
     }
 

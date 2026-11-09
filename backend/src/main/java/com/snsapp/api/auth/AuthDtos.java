@@ -24,4 +24,17 @@ public class AuthDtos {
             @NotBlank @Size(max = 255, message = "メールアドレスは255文字以内で入力してください") String email
     ) {
     }
+
+    public record ForgotPasswordRequest(
+            @NotBlank(message = "メールアドレスを入力してください")
+            @Size(max = 255, message = "メールアドレスは255文字以内で入力してください") String email
+    ) {
+    }
+
+    // パスワードのルールは登録と同じ(8〜72文字。72バイトを超える日本語などは PasswordEncoderConfig が弾く)
+    public record ResetPasswordRequest(
+            @NotBlank @Size(max = 100, message = "リンクが正しくないか、有効期限が切れています") String token,
+            @NotBlank @Size(min = 8, max = 72, message = "パスワードは8〜72文字で入力してください") String newPassword
+    ) {
+    }
 }

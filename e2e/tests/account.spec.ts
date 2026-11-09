@@ -3,6 +3,7 @@ import {
   logIn,
   newAccount,
   openVerificationLink,
+  passwordResetLink,
   postRow,
   register,
   search,
@@ -136,4 +137,32 @@ test("アカウントを削除すると、投稿も消え、同じパスワー�
   await viewer.goto("/");
   await viewer.getByRole("tab", { name: "みんな" }).click();
   await expect(viewer.getByText(text)).toHaveCount(0);
+});
+
+test("パスワードを忘れても、メールのリンクから新しいパスワードを決めてログインできる", async ({ session }) => {
+  const jane = newAccount("jane");
+  const page = await signUp(session, jane);
+  const otherDevice = await session(jane);
+  const newPassword = "e2e-reset-password";
+  await page.getByRole("button", { name: "ログアウト" }).click();
+
+  await page.getByRole("link", { name: "パスワードを忘れた方" }).click();
+  // ログイン画面にもメールアドレスの欄があるので、画面が替わってから入れる
+  await expect(page.getByRole("heading", { name: "パスワードの再設定" })).toBeVisible();
+  await page.locator("input[name=email]").fill(jane.email);
+  await page.getByRole("button", { name: "リンクを送る" }).click();
+  await expect(page.getByText(/が登録されていれば/)).toBeVisible();
+
+  await page.goto(await passwordResetLink(jane.email));
+  await page.locator("input[name=newPassword]").fill(newPassword);
+  await page.locator("input[name=confirmPassword]").fill(newPassword);
+  await page.getByRole("button", { name: "変更する" }).click();
+  await expect(page.getByRole("heading", { name: "パスワードを変更しました" })).toBeVisible();
+
+  // ほかの端末はログアウトされ、古いパスワードでは入れない
+  await otherDevice.goto("/settings");
+  await expect(otherDevice).toHaveURL(/\/login/);
+  await submitLogin(page, jane.email, jane.password);
+  await expect(page.getByRole("alert")).toBeVisible();
+  await logIn(page, { ...jane, password: newPassword });
 });
