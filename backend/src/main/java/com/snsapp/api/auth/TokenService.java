@@ -20,10 +20,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
- * ログインの証明(JWT)を作り、届いたものを確かめる。中身は「誰か(sub)」と「いつまで有効か(exp)」だけ。
- * サーバーは何も覚えないので、ログアウトしても、期限までは同じ JWT が使える(docs/auth.md)
+ * ログインの証明(JWT)を作り、届いたものを確かめる。中身は「誰か(sub)」「どのログインか(sid)」「世代(ver)」
+ * 「いつまで有効か(exp)」。sid と ver で、期限前でも無効にできる(CurrentUser、docs/auth.md)
  */
 @Component
 public class TokenService {
@@ -32,7 +33,10 @@ public class TokenService {
     // HS256 の鍵は256ビット(32バイト)以上
     static final int MIN_SECRET_BYTES = 32;
 
-    public record Verified(String userId, Instant issuedAt) {
+    private static final String SESSION_CLAIM = "sid";
+    private static final String VERSION_CLAIM = "ver";
+
+    public record Verified(String userId, String sessionId, int version, Instant issuedAt) {
     }
 
     private final MACSigner signer;
@@ -66,10 +70,17 @@ public class TokenService {
         return ttl;
     }
 
-    public String issue(String userId) {
+    /** 新しいログインの ID。作り直した JWT にも同じものを入れる */
+    public static String newSessionId() {
+        return UUID.randomUUID().toString();
+    }
+
+    public String issue(String userId, String sessionId, int version) {
         Instant now = clock.instant();
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .subject(userId)
+                .claim(SESSION_CLAIM, sessionId)
+                .claim(VERSION_CLAIM, version)
                 .issueTime(Date.from(now))
                 .expirationTime(Date.from(now.plus(ttl)))
                 .build();
@@ -93,11 +104,14 @@ public class TokenService {
             JWTClaimsSet claims = jwt.getJWTClaimsSet();
             Date expiresAt = claims.getExpirationTime();
             Date issuedAt = claims.getIssueTime();
-            if (claims.getSubject() == null || expiresAt == null || issuedAt == null
+            String sessionId = claims.getStringClaim(SESSION_CLAIM);
+            Integer version = claims.getIntegerClaim(VERSION_CLAIM);
+            if (claims.getSubject() == null || sessionId == null || version == null
+                    || expiresAt == null || issuedAt == null
                     || !clock.instant().isBefore(expiresAt.toInstant())) {
                 return Optional.empty();
             }
-            return Optional.of(new Verified(claims.getSubject(), issuedAt.toInstant()));
+            return Optional.of(new Verified(claims.getSubject(), sessionId, version, issuedAt.toInstant()));
         } catch (ParseException | JOSEException | IllegalStateException e) {
             return Optional.empty();
         }

@@ -223,7 +223,7 @@ public class UserController {
     }
 
     @Operation(operationId = "updateAccount", summary = "メールアドレスとパスワードを変える",
-            description = "現在のパスワードが要る。パスワードを変えても、他の端末のログインは期限(最後の操作から30分)まで続く。"
+            description = "現在のパスワードが要る。パスワードを変えると、他の端末はログアウトされる(次の操作で 401)。"
                     + "メールアドレスは、新しいアドレスに届く確認メールのリンクを開くまで変わらない(1時間に3回まで)")
     @ApiErrors({400, 409, 429, 503})
     @PutMapping("/me")
@@ -258,6 +258,8 @@ public class UserController {
         boolean passwordChanged = request.newPassword() != null && !request.newPassword().isBlank();
         if (passwordChanged) {
             user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+            // 古いパスワードで入っていた端末(パスワードを盗んだ人かもしれない)を、すべて締め出す
+            user.revokeAllTokens();
         }
 
         User saved;
@@ -267,7 +269,7 @@ public class UserController {
             throw ApiException.conflict("このメールアドレスは既に登録されています: " + user.getEmail());
         }
         if (passwordChanged) {
-            // 変更した本人には新しい JWT を渡す(期限が延びる)。他の端末の JWT は取り消せないので、期限まで使える
+            // 世代が進んで今の JWT も使えなくなったので、変更した本人にだけ新しい世代の JWT を渡す
             currentUser.signIn(httpResponse, saved);
         }
         return UserResponse.from(saved);

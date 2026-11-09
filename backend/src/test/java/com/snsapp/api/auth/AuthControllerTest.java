@@ -45,6 +45,9 @@ class AuthControllerTest extends ApiTestSupport {
     @Autowired
     private TokenService tokenService;
 
+    @Autowired
+    private RevokedSessionRepository revokedSessions;
+
     @AfterEach
     void resetClock() {
         rateLimiter.setClock(Clock.systemUTC());
@@ -82,6 +85,49 @@ class AuthControllerTest extends ApiTestSupport {
         assertEquals("", cleared.getValue());
         assertEquals(0, cleared.getMaxAge());
         mockMvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+        // 控えておいた JWT も、期限前なのにもう使えない
+        mockMvc.perform(get("/api/auth/me").cookie(token)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void loggingOutEndsOnlyThisDeviceIncludingItsRenewedTokens() throws Exception {
+        Instant start = Instant.now();
+        tokenService.setClock(Clock.fixed(start, ZoneOffset.UTC));
+        String username = newUsername();
+        Cookie pc = registerAndLogin(username);
+        Cookie phone = login(username);
+
+        // 2分後に操作して作り直された JWT も、同じログインのもの
+        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(2)), ZoneOffset.UTC));
+        Cookie renewed = perform(get("/api/timeline").cookie(pc)).getResponse().getCookie(CurrentUser.COOKIE_NAME);
+        assertNotNull(renewed);
+
+        mockMvc.perform(post("/api/auth/logout").cookie(renewed)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/timeline").cookie(renewed)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/timeline").cookie(pc)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/timeline").cookie(phone)).andExpect(status().isOk());
+    }
+
+    @Test
+    void expiredLogoutRecordsAreCleanedUp() throws Exception {
+        Instant start = Instant.now();
+        tokenService.setClock(Clock.fixed(start, ZoneOffset.UTC));
+        mockMvc.perform(post("/api/auth/logout").cookie(registerAndLogin())).andExpect(status().isNoContent());
+        long recorded = revokedSessions.count();
+
+        // 期限を過ぎてから別の人がログアウトすると、古い記録は消える
+        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(31)), ZoneOffset.UTC));
+        mockMvc.perform(post("/api/auth/logout").cookie(registerAndLogin())).andExpect(status().isNoContent());
+        assertEquals(recorded, revokedSessions.count());
+    }
+
+    @Test
+    void logoutWithoutAValidTokenRecordsNothing() throws Exception {
+        long before = revokedSessions.count();
+        mockMvc.perform(post("/api/auth/logout")).andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/auth/logout").cookie(new Cookie(CurrentUser.COOKIE_NAME, "not-a-jwt")))
+                .andExpect(status().isNoContent());
+        assertEquals(before, revokedSessions.count());
     }
 
     @Test
@@ -96,6 +142,7 @@ class AuthControllerTest extends ApiTestSupport {
     @Test
     void brokenTamperedOrForeignTokensAreRejected() throws Exception {
         Cookie mine = registerAndLogin();
+        String myId = body(perform(get("/api/auth/me").cookie(mine))).get("id").asString();
         String[] parts = mine.getValue().split("\\.");
         String otherUser = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString("{\"sub\":\"someone-else\",\"iat\":1,\"exp\":9999999999}".getBytes(StandardCharsets.UTF_8));
@@ -106,7 +153,8 @@ class AuthControllerTest extends ApiTestSupport {
                 "not-a-jwt",
                 parts[0] + "." + otherUser + "." + parts[2],      // 中身を書き換えた
                 noneHeader + "." + parts[1] + ".",                // 署名なしを名乗る
-                otherKey.issue("someone-else"));                  // 別の鍵で署名した
+                // 中身は本物と同じで、別の鍵で署名した
+                otherKey.issue(myId, TokenService.newSessionId(), 0));
         for (String value : rejected) {
             mockMvc.perform(get("/api/auth/me").cookie(new Cookie(CurrentUser.COOKIE_NAME, value)))
                     .andExpect(status().isUnauthorized());
@@ -251,7 +299,7 @@ class AuthControllerTest extends ApiTestSupport {
     }
 
     @Test
-    void changingThePasswordKeepsBothDevicesLoggedInUntilTheTokensExpire() throws Exception {
+    void changingThePasswordLogsOutOtherDevicesButKeepsTheCurrentOne() throws Exception {
         String username = newUsername();
         Cookie pc = registerAndLogin(username);
         Cookie phone = login(username);
@@ -259,10 +307,12 @@ class AuthControllerTest extends ApiTestSupport {
         MvcResult changed = perform(json(put("/api/users/me").cookie(pc),
                 Map.of("currentPassword", PASSWORD, "newPassword", "new-password-123")));
         assertEquals(200, changed.getResponse().getStatus());
-        // 変えた本人には新しい JWT が届く。他の端末の JWT は取り消せない(サーバーは JWT を覚えていない)
-        assertNotNull(changed.getResponse().getCookie(CurrentUser.COOKIE_NAME));
-        mockMvc.perform(get("/api/timeline").cookie(pc)).andExpect(status().isOk());
-        mockMvc.perform(get("/api/timeline").cookie(phone)).andExpect(status().isOk());
+        // 世代が進むので、変える前の JWT はどれも使えない。変えた本人には新しい世代の JWT が届く
+        Cookie renewed = changed.getResponse().getCookie(CurrentUser.COOKIE_NAME);
+        assertNotNull(renewed);
+        mockMvc.perform(get("/api/timeline").cookie(renewed)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/timeline").cookie(phone)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/timeline").cookie(pc)).andExpect(status().isUnauthorized());
 
         mockMvc.perform(json(post("/api/auth/login"),
                         Map.of("email", username + "@example.com", "password", "new-password-123")))

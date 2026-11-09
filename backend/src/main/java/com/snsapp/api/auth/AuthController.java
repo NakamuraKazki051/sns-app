@@ -176,13 +176,13 @@ public class AuthController {
     }
 
     @Operation(operationId = "logout", summary = "ログアウト",
-            description = "ブラウザの Cookie を消す。ログインしていなくても 204 を返す。"
-                    + "JWT そのものは取り消せないので、控えておいた値は期限(最後の操作から30分)まで使える")
+            description = "この端末のログインを終え、ブラウザの Cookie を消す。同じ JWT は期限前でも使えなくなる。"
+                    + "ほかの端末のログインはそのまま。ログインしていなくても 204 を返す")
     @PublicApi
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout(HttpServletResponse httpResponse) {
-        currentUser.signOut(httpResponse);
+    public void logout(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        currentUser.signOut(httpRequest, httpResponse);
     }
 
     @Operation(operationId = "getCurrentUser", summary = "ログイン中の自分の情報")
