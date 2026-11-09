@@ -408,3 +408,6 @@ small.over { color: var(--danger); font-weight: 700; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .nav-badge { display: inline-block; min-width: 18px; margin-left: 4px; padding: 0 5px; border-radius: 9px;
   background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; line-height: 18px; text-align: center; }
+.hashtag { color: var(--accent); }
+.trend-list { list-style: none; margin: 0; padding: 0; }
+.trend-list li { display: flex; justify-content: space-between; padding: 6px 0; }

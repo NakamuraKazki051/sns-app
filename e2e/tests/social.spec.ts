@@ -221,3 +221,19 @@ test("いいね・フォローされると通知の数が出て、開くと一�
   await expect(page.getByText("さんがあなたの投稿にいいねしました")).toBeVisible();
   await expect(page.getByRole("link", { name: "通知", exact: true })).toBeVisible();
 });
+
+test("#タグを押すと同じタグの投稿が並び、検索画面のトレンドにも出る", async ({ session }) => {
+  const quinn = newAccount("quinn");
+  const page = await signUp(session, quinn);
+  const tag = `e2e${Date.now().toString(36)}`;
+  const text = uniqueText(`タグ付きの投稿 #${tag}`);
+  await writePost(page, text);
+
+  await postRow(page, text).getByRole("link", { name: `#${tag}` }).click();
+  await expect(page).toHaveURL(new RegExp(`/hashtag/${tag}$`));
+  await expect(page.getByRole("heading", { name: `#${tag}` })).toBeVisible();
+  await expect(postRow(page, text)).toBeVisible();
+
+  await page.goto("/search");
+  await expect(page.getByRole("link", { name: `#${tag}` })).toBeVisible();
+});

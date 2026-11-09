@@ -266,6 +266,46 @@ paths:
       summary: メールアドレスの確認
       tags:
       - 認証
+  /api/hashtags/{tag}/posts:
+    get:
+      description: "新しい順に20件。タグは # を付けずに渡す(付けてもよい)。大文字・小文字は区別しない。ブロック・ミュート中の人の投稿は出\
+        さない"
+      operationId: listHashtagPosts
+      parameters:
+      - in: path
+        name: tag
+        required: true
+        schema:
+          type: string
+      - description: 前のページの nextCursor(投稿 ID)
+        in: query
+        name: before
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponse"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: ハッシュタグの付いた投稿
+      tags:
+      - 投稿
   /api/me/blocks:
     get:
       description: 新しくブロックした順に200人まで
@@ -1106,6 +1146,28 @@ paths:
                 $ref: "#/components/schemas/ApiError"
           description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
       summary: 全体タイムラインの新着
+      tags:
+      - 投稿
+  /api/trends:
+    get:
+      description: この24時間に投稿されたうち、使われた投稿の多いハッシュタグを10個まで
+      operationId: listTrends
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trend"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: トレンド
       tags:
       - 投稿
   /api/users:
@@ -2007,6 +2069,14 @@ components:
       required:
       - newPassword
       - token
+    Trend:
+      type: object
+      properties:
+        postsCount:
+          type: integer
+          format: int64
+        tag:
+          type: string
     UnreadCount:
       type: object
       properties:

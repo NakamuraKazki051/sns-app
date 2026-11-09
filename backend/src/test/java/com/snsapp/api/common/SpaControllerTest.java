@@ -20,7 +20,7 @@ class SpaControllerTest {
     @Test
     void screenUrlsReturnTheReactApp() throws Exception {
         for (String path : new String[]{"/login", "/verify-email", "/forgot-password", "/reset-password",
-                "/search", "/settings", "/notifications", "/posts/12", "/@alice_01",
+                "/search", "/settings", "/notifications", "/hashtag/travel", "/posts/12", "/@alice_01",
                 "/@alice_01/following", "/@alice_01/followers"}) {
             mockMvc.perform(get(path)).andExpect(forwardedUrl("/index.html"));
         }
