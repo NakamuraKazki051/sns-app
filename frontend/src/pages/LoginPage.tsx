@@ -28,6 +28,9 @@ export function LoginPage() {
   // メールアドレスの確認待ちのアドレス。あれば、フォームの代わりに案内を出す
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const [resent, setResent] = useState(false);
+  // 2段階認証(F-24)。パスワードが合って、認証アプリのコードが要るとき
+  const [needsCode, setNeedsCode] = useState(false);
+  const [code, setCode] = useState("");
 
   // ログイン済みなら(ログイン直後も)元の画面へ
   if (me) return <Navigate to={safeNext(params.get("next"))} replace />;
@@ -46,7 +49,12 @@ export function LoginPage() {
     setError(null);
     try {
       if (mode === "login") {
-        await login(form.email.trim(), form.password);
+        if (needsCode && !code.trim()) {
+          setError("認証コードを入力してください");
+          setSending(false);
+          return;
+        }
+        await login(form.email.trim(), form.password, needsCode ? code.trim() : undefined);
       } else {
         await register({
           email: form.email.trim(),
@@ -57,7 +65,9 @@ export function LoginPage() {
       }
     } catch (e) {
       // 登録の直後も、続けて行うログインがここに来る
-      if (e instanceof ApiError && e.status === 403) {
+      if (e instanceof ApiError && e.code === "TWO_FACTOR_REQUIRED") {
+        setNeedsCode(true);
+      } else if (e instanceof ApiError && e.status === 403) {
         setUnverifiedEmail(form.email.trim());
       } else {
         setError(errorMessage(e));
@@ -112,6 +122,49 @@ export function LoginPage() {
             ログイン画面に戻る
           </button>
         </div>
+      </main>
+    );
+  }
+
+  if (needsCode) {
+    return (
+      <main className="container">
+        <h1 className="login-title">RaiseLine</h1>
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <form className="card form" onSubmit={submit} noValidate>
+          <h2>2段階認証</h2>
+          <p>認証アプリに出ている6桁のコードを入力してください。スマホが手元にないときは、リカバリーコードも使えます。</p>
+          <label>
+            認証コード
+            <input
+              name="code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={20}
+              autoFocus
+            />
+          </label>
+          <button type="submit" className="button primary" disabled={sending}>
+            {sending ? "確認中…" : "ログイン"}
+          </button>
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              setNeedsCode(false);
+              setCode("");
+              setError(null);
+            }}
+          >
+            ログイン画面に戻る
+          </button>
+        </form>
       </main>
     );
   }

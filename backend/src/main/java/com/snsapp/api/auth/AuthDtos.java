@@ -11,7 +11,9 @@ public class AuthDtos {
     // 登録できる長さまで。メールアドレスはログイン回数を数えるキーとしてメモリに置くので、巨大な値を受け付けない
     public record LoginRequest(
             @NotBlank @Size(max = 255, message = "メールアドレスは255文字以内で入力してください") String email,
-            @NotBlank @Size(max = 72, message = "パスワードは72文字以内で入力してください") String password
+            @NotBlank @Size(max = 72, message = "パスワードは72文字以内で入力してください") String password,
+            // 2段階認証(F-24)が有効な人だけ。認証アプリの6桁のコードか、リカバリーコード
+            @Size(max = 20, message = "認証コードが正しくありません") String code
     ) {
     }
 

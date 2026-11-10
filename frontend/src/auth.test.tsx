@@ -96,6 +96,38 @@ describe("ログインが必要な画面", () => {
     expect(JSON.parse(loginCall[1]?.body as string)).toEqual({ email: "alice@example.com", password: "password123" });
   });
 
+  it("2段階認証が有効なら、パスワードのあとに認証コードを聞いて、もう一度送る(F-24)", async () => {
+    let loggedIn = false;
+    const fetchMock = mockFetch((url, init) => {
+      if (url === "/api/auth/login") {
+        const body = JSON.parse(init.body as string);
+        if (!body.code) return { status: 401, body: { message: "認証アプリのコードを入力してください", code: "TWO_FACTOR_REQUIRED" } };
+        if (body.code !== "123456") return { status: 401, body: { message: "認証コードが正しくありません" } };
+        loggedIn = true;
+        return { status: 200, body: ME };
+      }
+      return loggedIn ? { status: 200, body: ME } : { status: 401, body: { message: "ログインが必要です" } };
+    });
+    renderApp("/@bob");
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("メールアドレス"), "alice@example.com");
+    await user.type(screen.getByLabelText(/^パスワード/), "password123");
+    await user.click(screen.getByRole("button", { name: "ログイン" }));
+
+    const codeInput = await screen.findByLabelText("認証コード");
+    expect(screen.queryByRole("alert")).toBeNull();
+    await user.type(codeInput, "000000");
+    await user.click(screen.getByRole("button", { name: "ログイン" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("認証コードが正しくありません");
+
+    await user.clear(codeInput);
+    await user.type(codeInput, "123456");
+    await user.click(screen.getByRole("button", { name: "ログイン" }));
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/@bob"));
+    const lastLogin = fetchMock.mock.calls.filter(([url]) => url === "/api/auth/login").at(-1)!;
+    expect(JSON.parse(lastLogin[1]?.body as string)).toEqual({ email: "alice@example.com", password: "password123", code: "123456" });
+  });
+
   it("パスワード違いはログイン画面にエラーを出し、セッション切れ扱いにはしない", async () => {
     mockFetch((url) =>
       url === "/api/auth/login"

@@ -58,13 +58,18 @@ public class AuthController {
     private final ClientIp clientIp;
     private final EmailVerificationService emailVerification;
     private final int registerPerHour;
+    private final TwoFactorService twoFactor;
+
+    /** ログインで、パスワードは合ったが認証アプリのコードが要るとき(ApiError.code) */
+    public static final String TWO_FACTOR_REQUIRED = "TWO_FACTOR_REQUIRED";
 
     // 未登録のメールアドレスでも照合に使うダミーのハッシュ
     private final String dummyPasswordHash;
 
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, CurrentUser currentUser,
                           RateLimiter rateLimiter, ClientIp clientIp, EmailVerificationService emailVerification,
-                          @Value("${app.register.per-hour}") int registerPerHour) {
+                          @Value("${app.register.per-hour}") int registerPerHour, TwoFactorService twoFactor) {
+        this.twoFactor = twoFactor;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentUser = currentUser;
@@ -151,7 +156,8 @@ public class AuthController {
     }
 
     @Operation(operationId = "login", summary = "ログイン",
-            description = "成功すると Cookie(SNS_TOKEN、中身は JWT)が付く。1つのメールアドレスにつき5分に10回まで")
+            description = "成功すると Cookie(SNS_TOKEN、中身は JWT)が付く。1つのメールアドレスにつき5分に10回まで。"
+                    + "2段階認証が有効な人は code も要る(無ければ 401 で code が TWO_FACTOR_REQUIRED)")
     @PublicApi
     @ApiErrors({400, 401, 403, 429})
     @PostMapping("/login")
@@ -169,6 +175,16 @@ public class AuthController {
         // パスワードが合った人にだけ伝える(他の人には、登録の有無も確認の状態も分からない)
         if (emailVerification.isRequired() && !user.isEmailVerified()) {
             throw ApiException.forbidden("メールアドレスの確認が済んでいません。届いたメールのリンクを開いてください");
+        }
+        // 2段階認証(F-24)。パスワードが合った人にだけ、コードが要ることを伝える。コードの試行もログインの回数に数える
+        if (user.hasTwoFactor()) {
+            if (request.code() == null || request.code().isBlank()) {
+                throw new ApiException(HttpStatus.UNAUTHORIZED, "認証アプリのコードを入力してください", TWO_FACTOR_REQUIRED);
+            }
+            if (!twoFactor.verify(user, request.code())) {
+                throw ApiException.unauthorized("認証コードが正しくありません");
+            }
+            userRepository.save(user);
         }
         // ログインのたびに新しい JWT を作るので、ログイン前の値を使い回されることはない(セッション固定攻撃にならない)
         currentUser.signIn(httpResponse, user);

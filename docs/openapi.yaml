@@ -68,7 +68,8 @@ paths:
       - 認証
   /api/auth/login:
     post:
-      description: 成功すると Cookie(SNS_TOKEN、中身は JWT)が付く。1つのメールアドレスにつき5分に10回まで
+      description: 成功すると Cookie(SNS_TOKEN、中身は JWT)が付く。1つのメールアドレスにつき5分に10回まで。2段階認証が有効な人は
+        code も要る(無ければ 401 で code が TWO_FACTOR_REQUIRED)
       operationId: login
       requestBody:
         content:
@@ -579,6 +580,178 @@ paths:
                 $ref: "#/components/schemas/ApiError"
           description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
       summary: 表示名と自己紹介を変える
+      tags:
+      - 自分の設定
+  /api/me/two-factor:
+    delete:
+      description: パスワードと、認証アプリのコード(かまだ使っていないリカバリーコード)が要る。リカバリーコードも消す。1人5分に10回まで
+      operationId: disableTwoFactor
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisableRequest"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: メールアドレスかユーザー名が、既に使われている
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      summary: 2段階認証を外す
+      tags:
+      - 自分の設定
+    get:
+      operationId: getTwoFactor
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 2段階認証の状態
+      tags:
+      - 自分の設定
+  /api/me/two-factor/enable:
+    post:
+      description: 設定を始めたあと、認証アプリに出た6桁のコードを送る。合えば有効にし、リカバリーコード10個を返す(今だけ見られる)。1人5分に10回まで
+      operationId: enableTwoFactor
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CodeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoveryCodes"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: メールアドレスかユーザー名が、既に使われている
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      summary: 2段階認証を有効にする
+      tags:
+      - 自分の設定
+  /api/me/two-factor/recovery-codes:
+    post:
+      description: 認証アプリのコード(かまだ使っていないリカバリーコード)が要る。前のリカバリーコードは使えなくなる。1人5分に10回まで
+      operationId: regenerateRecoveryCodes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CodeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecoveryCodes"
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: メールアドレスかユーザー名が、既に使われている
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      summary: リカバリーコードを作り直す
+      tags:
+      - 自分の設定
+  /api/me/two-factor/setup:
+    post:
+      description: 新しい秘密の鍵を作って返す。まだ有効にはならない(有効にする API にコードを送ったとき有効になる)。もう有効なら 409
+      operationId: setupTwoFactor
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Setup"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: メールアドレスかユーザー名が、既に使われている
+      summary: 2段階認証の設定を始める
       tags:
       - 自分の設定
   /api/notifications:
@@ -1843,6 +2016,9 @@ components:
   schemas:
     ApiError:
       properties:
+        code:
+          type: string
+          description: 画面が出し分けに使う目印。ログインで認証アプリのコードが要るときの TWO_FACTOR_REQUIRED だけ。ほかは付かない
         message:
           type: string
           description: 画面にそのまま出せる日本語の説明
@@ -1858,6 +2034,15 @@ components:
       properties:
         blocking:
           type: boolean
+    CodeRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 20
+          minLength: 0
+      required:
+      - code
     Conversation:
       type: object
       properties:
@@ -1882,6 +2067,20 @@ components:
           maxLength: 72
           minLength: 0
       required:
+      - password
+    DisableRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 20
+          minLength: 0
+        password:
+          type: string
+          maxLength: 72
+          minLength: 0
+      required:
+      - code
       - password
     EditRequest:
       type: object
@@ -1941,6 +2140,10 @@ components:
     LoginRequest:
       type: object
       properties:
+        code:
+          type: string
+          maxLength: 20
+          minLength: 0
         email:
           type: string
           maxLength: 255
@@ -2169,6 +2372,14 @@ components:
           type: string
         username:
           type: string
+    RecoveryCodes:
+      type: object
+      properties:
+        recoveryCodes:
+          type: array
+          description: リカバリーコード。今だけ見られる(サーバーにはハッシュしか残らない)
+          items:
+            type: string
     RegisterRequest:
       type: object
       properties:
@@ -2254,6 +2465,25 @@ components:
         body:
           type: string
           description: 本文。500字まで(絵文字も1字と数える)
+    Setup:
+      type: object
+      properties:
+        secret:
+          type: string
+          description: 秘密の鍵(Base32)。QR コードを読めないときに認証アプリへ手で入れる
+        uri:
+          type: string
+          description: 認証アプリに読ませる otpauth:// の URI。画面が QR コードにする
+    Status:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: 有効か
+        recoveryCodesLeft:
+          type: integer
+          format: int64
+          description: まだ使っていないリカバリーコードの数(無効なら0)
     Trend:
       type: object
       properties:

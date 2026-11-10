@@ -29,6 +29,7 @@
 | F-21 | 通知 | 済（2026-11-09 追加） |
 | F-22 | ハッシュタグ・トレンド | 済（2026-11-09 追加） |
 | F-23 | DM | 済（2026-11-10 追加） |
+| F-24 | 2段階認証 | 済（2026-11-10 追加） |
 
 ## 2. 共通の決まり
 
@@ -272,11 +273,29 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 - 画面：メニューに「メッセージ」と未読の数、`/messages` に会話一覧、`/messages/ユーザー名` にやりとり（古い順、自分のものは右）。会話を開いている間は最初のページを5秒ごとに聞き直し、新着と相手の既読を反映する。自分の最後のメッセージに「既読」か「送信済み」
 - ユーザーを消すと、その人の DM も DB が一緒に消す
 
+### 4.10 2段階認証（F-24）
+
+| メソッド | パス | 返すもの |
+| --- | --- | --- |
+| GET | `/api/me/two-factor` | `{ enabled, recoveryCodesLeft }` |
+| POST | `/api/me/two-factor/setup` | `{ secret, uri }`。新しい鍵（Base32）と、認証アプリに読ませる `otpauth://` の URI。まだ有効にはならない。有効なら 409 |
+| POST | `/api/me/two-factor/enable` | `{ recoveryCodes }`。`{ code }` が設定中の鍵で合えば有効にし、リカバリーコード10個を返す（今だけ見られる） |
+| POST | `/api/me/two-factor/recovery-codes` | `{ recoveryCodes }`。`{ code }`（認証コードかリカバリーコード）が合えば作り直す。前のものは使えなくなる |
+| DELETE | `/api/me/two-factor` | 204。`{ password, code }` が両方合えば外し、リカバリーコードも消す |
+
+- コードは TOTP（RFC 6238、HMAC-SHA1・30秒・6桁）。時計のずれを考えて前後1つ（±30秒）の時間枠まで受け付ける。ライブラリは使わず `Totp.java` で計算する
+- 一度使えた時間枠より前のコードは受け付けない（`totp_last_step`）。盗み見たコードをもう一度使えないように
+- リカバリーコードは「abcd-efgh」の形（紛らわしい 0/O・1/I/L は使わない）。DB には SHA-256 だけを置き、使ったら `used_at` を入れる。大文字・小文字、空白とハイフンは問わない
+- ログイン（`POST /api/auth/login`）：パスワードが合ってメールの確認も済んだ人で2段階認証が有効なら、`code` が無ければ 401 と `code: "TWO_FACTOR_REQUIRED"`（エラーの JSON の目印。ほかのエラーには付かない）。違えば 401。コードの試行もログインの回数（1つのメールアドレスにつき5分に10回）に数える
+- 設定の API（有効にする・作り直す・外す）は、1人5分に10回まで（429）
+- 画面：設定画面に「2段階認証」。QR コードは画面で作る（`qrcode` パッケージ）。読めないときのため鍵も4文字ずつ区切って出す。ログイン画面は、コードが要ると分かったら「認証コード」の入力に切り替える
+- パスワードを再設定しても2段階認証はそのまま（メールを乗っ取られても入られないように）。スマホをなくしたらリカバリーコードを使う
+
 ## 5. データ
 
 | テーブル | 主な列 | 制約・インデックス |
 | --- | --- | --- |
-| users | id（UUID）, email, password_hash, username, display_name, bio, icon_updated_at, created_at, email_verified_at, token_version | email・username に一意制約。token_version はログインの JWT の世代（`V5`） |
+| users | id（UUID）, email, password_hash, username, display_name, bio, icon_updated_at, created_at, email_verified_at, token_version, totp_secret, totp_pending_secret, totp_last_step | email・username に一意制約。token_version はログインの JWT の世代（`V5`）。totp_* は2段階認証の鍵と、最後に使ったコードの時間枠（`V13`） |
 | revoked_sessions | session_id（主キー、JWT の sid）, expires_at | ログアウトしたログイン。期限を過ぎた行はログアウトのたびに消す（`V5__token_revocation.sql`） |
 | password_resets | token_hash（主キー、SHA-256）, user_id, expires_at | (user_id)。アカウントを消すと一緒に消える（`V6__password_resets.sql`） |
 | blocks | id, blocker_id, blocked_id, created_at | (blocker_id, blocked_id) に一意制約、(blocked_id)。どちらのユーザーを消しても一緒に消える（`V8__blocks_mutes.sql`） |
@@ -284,6 +303,7 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | notifications | id, recipient_id, actor_id, type（LIKE・REPLY・REPOST・FOLLOW）, post_id, created_at, read_at | (recipient_id, id)。投稿・ユーザーを消すと一緒に消える（`V9__notifications.sql`） |
 | post_hashtags | id, post_id, tag（小文字、# なし、50字まで）, created_at（投稿した時刻） | (post_id, tag) に一意制約、(tag, post_id)、(created_at)。投稿を消すと一緒に消える（`V10__hashtags.sql`。前からある投稿は Java の `V11__BackfillHashtags` で取り出す） |
 | direct_messages | id（連番）, sender_id, recipient_id, body（500字まで）, created_at, read_at | (sender_id, recipient_id, id)、(recipient_id, sender_id, id)。どちらのユーザーを消しても一緒に消える（`V12__direct_messages.sql`） |
+| recovery_codes | id, user_id, code_hash（SHA-256）, used_at | (user_id)。2段階認証のリカバリーコード。アカウントを消すと一緒に消える（`V13__two_factor.sql`） |
 | user_icons | user_id（主キー）, content_type, data（MEDIUMBLOB）, updated_at | 1人1枚 |
 | posts | id（連番）, user_id, body, created_at, image_*, edited_at | (user_id, id)。edited_at は本文を最後に直した時刻（`V7__post_edits.sql`） |
 | replies | id（連番）, post_id, user_id, body, created_at | (post_id, id)。投稿を消すと DB が一緒に消す（ON DELETE CASCADE） |

@@ -7,6 +7,7 @@ import { useFeedback } from "../feedback";
 import { BIO_MAX, countChars, DISPLAY_NAME_MAX, displayNameLength } from "../text";
 import type { Me, PublicUser } from "../types";
 import { Link } from "react-router";
+import { TwoFactorSettings } from "./TwoFactorSettings";
 
 const ICON_MAX_BYTES = 1024 * 1024;
 
@@ -17,6 +18,7 @@ export function SettingsPage() {
       <ProfileForm />
       <EmailForm />
       <PasswordForm />
+      <TwoFactorSettings />
       <RelationList kind="mutes" />
       <RelationList kind="blocks" />
       <DeleteAccountForm />

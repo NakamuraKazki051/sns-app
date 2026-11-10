@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, test as base, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
@@ -124,4 +124,18 @@ export async function search(page: Page, query: string) {
 
 export async function confirmDelete(page: Page) {
   await page.getByRole("dialog").getByRole("button", { name: "削除する" }).click();
+}
+
+/** 認証アプリと同じ6桁のコード(TOTP、SHA-1・30秒)。stepOffset は時間枠のずらし(1 なら次の30秒の分) */
+export function totp(secret: string, stepOffset = 0): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const c of secret.replace(/\s/g, "").toUpperCase()) bits += alphabet.indexOf(c).toString(2).padStart(5, "0");
+  const key = Buffer.from((bits.match(/.{8}/g) ?? []).map((b) => parseInt(b, 2)));
+  const step = Math.floor(Date.now() / 1000 / 30) + stepOffset;
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(step));
+  const hash = createHmac("sha1", key).update(counter).digest();
+  const offset = hash[hash.length - 1] & 0x0f;
+  return String((hash.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
 }
