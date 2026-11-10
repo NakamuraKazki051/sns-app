@@ -10,6 +10,7 @@ import {
   signUp,
   submitLogin,
   test,
+  totp,
   uniqueText,
   writePost,
 } from "./support";
@@ -165,4 +166,39 @@ test("パスワードを忘れても、メールのリンクから新しいパ�
   await submitLogin(page, jane.email, jane.password);
   await expect(page.getByRole("alert")).toBeVisible();
   await logIn(page, { ...jane, password: newPassword });
+});
+
+test("2段階認証を有効にすると、ログインで認証コードかリカバリーコードが要る", async ({ session }) => {
+  const tina = newAccount("tina");
+  const page = await signUp(session, tina);
+
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "2段階認証を設定する" }).click();
+  await expect(page.getByAltText("認証アプリに読み取らせる QR コード")).toBeVisible();
+  const secret = (await page.locator(".two-factor-secret").textContent()) ?? "";
+  await page.getByLabel(/6桁のコード/).fill(totp(secret));
+  await page.getByRole("button", { name: "有効にする" }).click();
+  const codes = page.getByRole("list", { name: "リカバリーコード" }).getByRole("listitem");
+  await expect(codes).toHaveCount(10);
+  const recovery = (await codes.first().textContent()) ?? "";
+  await page.getByRole("button", { name: "保管しました" }).click();
+  await expect(page.getByText("残りのリカバリーコード：10個")).toBeVisible();
+
+  await page.getByRole("button", { name: "ログアウト" }).click();
+  await submitLogin(page, tina.email, tina.password);
+  await page.getByLabel("認証コード").fill("000000");
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText("認証コードが正しくありません");
+  // 有効にするのに使った時間枠のコードは使えないので、次の時間枠のもの(前後30秒までは通る)
+  await page.getByLabel("認証コード").fill(totp(secret, 1));
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "メニュー" })).toBeVisible();
+
+  await page.getByRole("button", { name: "ログアウト" }).click();
+  await submitLogin(page, tina.email, tina.password);
+  await page.getByLabel("認証コード").fill(recovery);
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "メニュー" })).toBeVisible();
+  await page.goto("/settings");
+  await expect(page.getByText("残りのリカバリーコード：9個")).toBeVisible();
 });

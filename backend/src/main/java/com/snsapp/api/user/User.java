@@ -50,6 +50,16 @@ public class User {
     @Column(nullable = false)
     private int tokenVersion;
 
+    // 2段階認証(F-24)。totpSecret が null なら無効。totpPendingSecret は設定中の鍵
+    @Column(length = 64)
+    private String totpSecret;
+
+    @Column(length = 64)
+    private String totpPendingSecret;
+
+    @Column(nullable = false)
+    private long totpLastStep;
+
     protected User() {
     }
 
@@ -108,6 +118,45 @@ public class User {
     /** それまでに渡したログインの JWT を、すべての端末で使えなくする */
     public void revokeAllTokens() {
         tokenVersion++;
+    }
+
+    /** 2段階認証(F-24)が有効か */
+    public boolean hasTwoFactor() {
+        return totpSecret != null;
+    }
+
+    public String getTotpSecret() {
+        return totpSecret;
+    }
+
+    public String getTotpPendingSecret() {
+        return totpPendingSecret;
+    }
+
+    public long getTotpLastStep() {
+        return totpLastStep;
+    }
+
+    /** 設定を始める。認証アプリでコードを確かめるまでは有効にしない */
+    public void startTwoFactorSetup(String secret) {
+        this.totpPendingSecret = secret;
+    }
+
+    public void enableTwoFactor(long usedStep) {
+        this.totpSecret = totpPendingSecret;
+        this.totpPendingSecret = null;
+        this.totpLastStep = usedStep;
+    }
+
+    public void disableTwoFactor() {
+        this.totpSecret = null;
+        this.totpPendingSecret = null;
+        this.totpLastStep = 0;
+    }
+
+    /** 使ったコードの時間枠を覚える(同じコードをもう一度使えないように) */
+    public void useTotpStep(long step) {
+        this.totpLastStep = step;
     }
 
     public String getUsername() {

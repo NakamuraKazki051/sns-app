@@ -14,7 +14,8 @@ type AuthContextValue = {
   sessionExpired: boolean;
   /** 自分でログアウトしたとき true(ログイン画面に戻り先を付けない) */
   signedOut: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** code は2段階認証(F-24)のコード。要るのに無ければ ApiError(code: TWO_FACTOR_REQUIRED)を投げる */
+  login: (email: string, password: string, code?: string) => Promise<void>;
   register: (params: RegisterParams) => Promise<void>;
   logout: () => Promise<void>;
   /** アカウントを削除して、ログイン画面へ戻る。パスワードが違えば ApiError を投げる */
@@ -57,8 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const user = await api<Me>("/api/auth/login", { method: "POST", body: { email, password } });
+  const login = useCallback(async (email: string, password: string, code?: string) => {
+    const user = await api<Me>("/api/auth/login", { method: "POST", body: code ? { email, password, code } : { email, password } });
     setSessionExpired(false);
     setSignedOut(false);
     setMe(user);

@@ -3,10 +3,13 @@ import type { PublicUser } from "./types";
 /** API がエラーを返したとき。message はサーバーの日本語メッセージ */
 export class ApiError extends Error {
   readonly status: number;
+  /** 画面が出し分けに使う目印(ログインで認証アプリのコードが要るときの TWO_FACTOR_REQUIRED など)。普段は undefined */
+  readonly code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -56,7 +59,7 @@ export async function api<T>(path: string, { method = "GET", body, form }: Optio
     if (response.status === 401 && !path.startsWith("/api/auth/")) {
       unauthorizedHandler?.();
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, typeof data?.code === "string" ? data.code : undefined);
   }
   return data as T;
 }
