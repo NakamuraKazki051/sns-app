@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 $tf = "$env:USERPROFILE\tools\terraform\terraform.exe"
 $region = 'ap-northeast-1'
 $db = 'sns-app-db'
-$keepSnapshots = 2
+$keepSnapshots = 1
 Set-Location $PSScriptRoot
 
 aws sts get-caller-identity --output text *> $null

@@ -79,7 +79,7 @@ cd infra/terraform
 |---|---|
 | `up.ps1` | 画像のバケットが無ければ作る（`storage/`）。最新のDBスナップショットがあれば、そこから RDS を復元して環境を作る（なければ空のDB）。そのあと `deploy.ps1` を実行してURLを表示する。`-SkipDeploy` を付けると作るだけ |
 | `deploy.ps1` | 画面（`npm run build`）と `app.jar`（`mvn package`）をビルドし、非公開のS3バケットに置く。EC2 が Session Manager 経由でそれを取り込み、アプリを起動し直す。ログインなしの `/api/auth/me` が 401 を返したら完了。`-SkipBuild` を付けるとビルドを省く |
-| `down.ps1` | RDSのスナップショットを取り、完成を待ってから `terraform destroy` で全部消す（CloudFront も消える）。スナップショットに失敗したら何も消さずに止まる。スナップショットは新しいものから2つだけ残す |
+| `down.ps1` | RDSのスナップショットを取り、完成を待ってから `terraform destroy` で全部消す（CloudFront も消える）。スナップショットに失敗したら何も消さずに止まる。スナップショットは最新の1つだけ残す（取り終えてから古いものを消すので、失敗しても前のものは残る） |
 
 - **作り直すたびに URL（`xxxx.cloudfront.net`）が変わります。** `up.ps1` の最後に表示されるURLを使ってください
 - EC2 のサイズなどを変えたい場合は、`terraform.tfvars.example` を `terraform.tfvars` という名前でコピーして編集します
@@ -135,7 +135,7 @@ $c = [Net.Sockets.TcpClient]::new(); $c.ConnectAsync($ip, 8080).Wait(5000); $c.D
 $c = [Net.Sockets.TcpClient]::new(); $c.ConnectAsync((& $tf output -raw db_endpoint), 3306).Wait(5000); $c.Dispose()
 ```
 
-`down.ps1` のあとの消し忘れ確認（どれも空なら OK。スナップショットは2つまで）:
+`down.ps1` のあとの消し忘れ確認（どれも空なら OK。スナップショットは1つ）:
 
 ```powershell
 aws ec2 describe-instances --region $r --filters Name=tag:Project,Values=sns-app Name=instance-state-name,Values=pending,running,stopping,stopped --query "Reservations[].Instances[].InstanceId" --output text
