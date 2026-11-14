@@ -7,12 +7,14 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * ログイン中の人を、Cookie に入ったアクセストークン(JWT、15分)で確かめる。
@@ -30,6 +32,7 @@ public class CurrentUser {
     // 1つのリクエストの中で確かめ終わった人。RequestLogFilter がログに出す
     public static final String VERIFIED_KEY = CurrentUser.class.getName() + ".verified";
     private static final String EXPIRED = "ログインの有効期限が切れました。もう一度ログインしてください";
+    static final int DEADLOCK_ATTEMPTS = 3;
 
     private final TokenService tokens;
     private final RefreshTokens refreshTokens;
@@ -90,7 +93,7 @@ public class CurrentUser {
         if (token == null) {
             throw ApiException.unauthorized("ログインが必要です");
         }
-        RefreshTokens.Result result = refreshTokens.rotate(token);
+        RefreshTokens.Result result = retryOnDeadlock(() -> refreshTokens.rotate(token));
         if (result.rotated().isPresent()) {
             RefreshTokens.Rotated rotated = result.rotated().get();
             writeAccessCookie(response, tokens.issue(rotated.userId(), rotated.sessionId(), rotated.version()));
@@ -111,8 +114,27 @@ public class CurrentUser {
                 .flatMap(tokens::verify)
                 .map(TokenService.Verified::sessionId)
                 .or(() -> Optional.ofNullable(readCookie(request, REFRESH_COOKIE_NAME)).flatMap(refreshTokens::sessionOf))
-                .ifPresent(refreshTokens::revokeSession);
+                .ifPresent(sessionId -> retryOnDeadlock(() -> {
+                    refreshTokens.revokeSession(sessionId);
+                    return null;
+                }));
         clearCookie(response);
+    }
+
+    /**
+     * 同じログインの取り替えとログアウトが同時に来ると、MySQL がデッドロックを見つけて片方を取り消すことがある。
+     * 取り消された側はトランザクションごと無かったことになっているので、最初からやり直せばよい(MySQL の推奨どおり)
+     */
+    static <T> T retryOnDeadlock(Supplier<T> work) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return work.get();
+            } catch (PessimisticLockingFailureException e) {
+                if (attempt >= DEADLOCK_ATTEMPTS) {
+                    throw e;
+                }
+            }
+        }
     }
 
     /** ブラウザの Cookie を2つとも消す(期限0の空の Cookie を返す) */

@@ -1,0 +1,23 @@
+---
+description: ブラウザで開くときは Chrome だけを使う
+alwaysApply: true
+---
+
+# ブラウザは Chrome
+
+URL を開くときは Google Chrome を使う。既定ブラウザ（Edge）では開かない。
+
+- 開くときは次の形だけ使う。
+
+```powershell
+Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" "https://example.com"
+```
+
+- `Start-Process <url>` は使わない。Edge が開く。
+- `aws login` の前に、次を設定する。`chrome` という名前だけや空文字は不可。
+
+```powershell
+$env:BROWSER = '"C:\Program Files\Google\Chrome\Application\chrome.exe" %s'
+```
+
+- 画面操作でブラウザを開くときも Chrome を使う。Edge のタブは開かない。

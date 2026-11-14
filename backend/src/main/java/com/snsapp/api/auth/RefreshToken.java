@@ -63,4 +63,9 @@ public class RefreshToken {
     public Instant getUsedAt() {
         return usedAt;
     }
+
+    /** 新しいものと取り替えた。もう使えない */
+    public void markUsed(Instant now) {
+        this.usedAt = now;
+    }
 }
