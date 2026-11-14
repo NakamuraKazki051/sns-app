@@ -21,7 +21,8 @@ app:
   # 毎回同じ鍵にして、テストの結果が実行ごとに変わらないようにする
   auth:
     jwt-secret: test-secret-that-is-at-least-32-bytes-long
-    token-ttl: 30m
+    access-token-ttl: 15m
+    refresh-token-ttl: 7d
     cookie-secure: false
   public-url: http://localhost:5173
   # ほとんどのテストは登録してすぐログインする。確認の動きは EmailVerificationTest で確かめる

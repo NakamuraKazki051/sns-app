@@ -28,12 +28,14 @@ spring:
 
 # 投稿の画像の置き場所。IMAGES_S3_BUCKET があれば S3(AWS)、無ければ dir のフォルダ(ローカル)
 app:
-  # ログインの証明(JWT)。HttpOnly の Cookie SNS_TOKEN に入れて渡す(docs/auth.md)
+  # ログインの証明。HttpOnly の Cookie SNS_TOKEN(アクセストークン、JWT)と SNS_REFRESH(リフレッシュトークン)で渡す(docs/auth.md)
   auth:
     # 署名の鍵(32文字以上)。空ならアプリの起動ごとに作る(ローカル用。再起動するとログアウトになる)
     jwt-secret: ${JWT_SECRET:}
-    # 有効期限。操作のたびに延びるので「最後の操作から30分」になる
-    token-ttl: 30m
+    # アクセストークン(JWT)の有効期限。切れたらリフレッシュトークンで作り直す
+    access-token-ttl: 15m
+    # リフレッシュトークンの有効期限。使うたびに取り替えて延びるので「最後の操作から7日」になる
+    refresh-token-ttl: 7d
     # AWS(https)では true。ローカルは http なので false(true だとログインできない)
     cookie-secure: ${SESSION_COOKIE_SECURE:false}
   # AWS だけで使う。CloudFront が付ける秘密のヘッダーの値(OriginSecretFilter)

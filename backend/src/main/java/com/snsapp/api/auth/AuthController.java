@@ -156,7 +156,7 @@ public class AuthController {
     }
 
     @Operation(operationId = "login", summary = "ログイン",
-            description = "成功すると Cookie(SNS_TOKEN、中身は JWT)が付く。1つのメールアドレスにつき5分に10回まで。"
+            description = "成功すると Cookie が2つ付く。SNS_TOKEN(アクセストークン、JWT、15分)と SNS_REFRESH(リフレッシュトークン、7日)。1つのメールアドレスにつき5分に10回まで。"
                     + "2段階認証が有効な人は code も要る(無ければ 401 で code が TWO_FACTOR_REQUIRED)")
     @PublicApi
     @ApiErrors({400, 401, 403, 429})
@@ -191,9 +191,21 @@ public class AuthController {
         return UserResponse.from(user);
     }
 
+    @Operation(operationId = "refreshToken", summary = "アクセストークンを作り直す",
+            description = "Cookie SNS_REFRESH(リフレッシュトークン、7日)を新しいものと取り替え、SNS_TOKEN(アクセストークン、15分)も作り直す。"
+                    + "取り替えたあとの古いリフレッシュトークンは使えない。30秒以上たってからもう一度使われたら、盗まれたとみなしてそのログインごと終える。"
+                    + "30秒以内(ほかのタブが同時に作り直した)なら、何も変えずに 204 を返す")
+    @PublicApi
+    @ApiErrors(401)
+    @PostMapping("/refresh")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void refresh(HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        currentUser.refresh(httpRequest, httpResponse);
+    }
+
     @Operation(operationId = "logout", summary = "ログアウト",
-            description = "この端末のログインを終え、ブラウザの Cookie を消す。同じ JWT は期限前でも使えなくなる。"
-                    + "ほかの端末のログインはそのまま。ログインしていなくても 204 を返す")
+            description = "この端末のログインを終え、ブラウザの Cookie を消す。同じアクセストークンは期限前でも使えなくなり、"
+                    + "リフレッシュトークンも消す。ほかの端末のログインはそのまま。ログインしていなくても 204 を返す")
     @PublicApi
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
