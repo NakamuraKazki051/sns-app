@@ -78,15 +78,16 @@ public class RefreshTokens {
     public Result rotate(String token) {
         Instant now = tokens.now();
         String hash = LinkTokens.hash(token);
-        Optional<RefreshToken> found = repository.findById(hash);
+        // ロックして読むので、同時に来たほかの取り替え・ログアウトが終わった後の状態が見える
+        Optional<RefreshToken> found = repository.findForUpdate(hash);
         if (found.isEmpty() || !found.get().getExpiresAt().isAfter(now)) {
             return Result.fail(Failure.INVALID);
         }
         RefreshToken current = found.get();
-        if (repository.markUsed(hash, now) == 0) {
-            // もう使われていた。読んだあとに使われた(同時に届いた)ときは usedAt が null のまま
-            Instant usedAt = current.getUsedAt();
-            if (usedAt == null || usedAt.plus(REUSE_GRACE).isAfter(now)) {
+        Instant usedAt = current.getUsedAt();
+        if (usedAt != null) {
+            // もう取り替え済み。少し前なら、ほかのタブが同時に作り直しただけ
+            if (usedAt.plus(REUSE_GRACE).isAfter(now)) {
                 return Result.fail(Failure.JUST_ROTATED);
             }
             // 取り替えて時間が経ったものがまた届いた = 盗んだ人か本人のどちらかが古いものを持っている。
@@ -94,6 +95,7 @@ public class RefreshTokens {
             revokeSession(current.getSessionId());
             return Result.fail(Failure.INVALID);
         }
+        current.markUsed(now);
         // パスワードを変えた(世代が違う)・アカウントを消した人のものは使えない
         boolean currentVersion = users.findById(current.getUserId())
                 .map(user -> user.getTokenVersion() == current.getTokenVersion())

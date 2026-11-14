@@ -1,21 +1,24 @@
 package com.snsapp.api.auth;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Optional;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, String> {
 
     /**
-     * まだ使っていなければ「使った」にする。変えた行の数を返す(0なら、もう使われていた)。
-     * 読んでから書くと、同時に届いた2つがどちらも取り替えられてしまうので、1つの UPDATE で確かめて書く
+     * 行をロックして読む(SELECT ... FOR UPDATE)。同じトークンの取り替えやログアウトが同時に来ても、
+     * 片方が終わるまでもう片方を待たせ、終わったあとの最新の状態で判断する
      */
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("update RefreshToken r set r.usedAt = :now where r.tokenHash = :hash and r.usedAt is null")
-    int markUsed(@Param("hash") String hash, @Param("now") Instant now);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from RefreshToken r where r.tokenHash = :hash")
+    Optional<RefreshToken> findForUpdate(@Param("hash") String hash);
 
     /** そのログインのリフレッシュトークンを、使ったものも含めてすべて消す */
     @Modifying(flushAutomatically = true, clearAutomatically = true)

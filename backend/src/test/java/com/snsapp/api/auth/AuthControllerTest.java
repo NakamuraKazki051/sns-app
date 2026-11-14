@@ -99,13 +99,19 @@ class AuthControllerTest extends ApiTestSupport {
     void expiredLogoutRecordsAreCleanedUp() throws Exception {
         Instant start = Instant.now();
         tokenService.setClock(Clock.fixed(start, ZoneOffset.UTC));
-        mockMvc.perform(post("/api/auth/logout").cookie(registerAndLogin())).andExpect(status().isNoContent());
-        long recorded = revokedSessions.count();
+        Cookie first = registerAndLogin();
+        String firstSession = tokenService.verify(first.getValue()).orElseThrow().sessionId();
+        mockMvc.perform(post("/api/auth/logout").cookie(first)).andExpect(status().isNoContent());
+        assertTrue(revokedSessions.existsById(firstSession));
 
-        // 期限を過ぎてから別の人がログアウトすると、古い記録は消える
+        // 期限を過ぎてから別の人がログアウトすると、古い記録は消え、新しい記録が残る
+        // (件数では比べない。ほかのテストがコミットした記録も一緒に消えることがあるため)
         tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(16)), ZoneOffset.UTC));
-        mockMvc.perform(post("/api/auth/logout").cookie(registerAndLogin())).andExpect(status().isNoContent());
-        assertEquals(recorded, revokedSessions.count());
+        Cookie second = registerAndLogin();
+        String secondSession = tokenService.verify(second.getValue()).orElseThrow().sessionId();
+        mockMvc.perform(post("/api/auth/logout").cookie(second)).andExpect(status().isNoContent());
+        assertFalse(revokedSessions.existsById(firstSession));
+        assertTrue(revokedSessions.existsById(secondSession));
     }
 
     @Test
