@@ -27,7 +27,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
- * ログイン状態を持つ。ログインの証拠は HttpOnly の Cookie(SNS_TOKEN、中身は JWT)だけで、
+ * ログイン状態を持つ。ログインの証拠は HttpOnly の Cookie(SNS_TOKEN のアクセストークンと SNS_REFRESH のリフレッシュトークン)だけで、
  * JavaScript からは読めない。なので起動時に /api/auth/me を呼んで「ログイン中か」をサーバーに聞く
  */
 export function AuthProvider({ children }: { children: ReactNode }) {

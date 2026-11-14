@@ -69,13 +69,19 @@ class AuthControllerTest extends ApiTestSupport {
         MvcResult login = perform(json(post("/api/auth/login"), Map.of("email", "ALICE@example.com", "password", PASSWORD)));
         assertEquals(200, login.getResponse().getStatus());
         Cookie token = login.getResponse().getCookie(CurrentUser.COOKIE_NAME);
-        // JWT は「ヘッダー.中身.署名」の3つ。JavaScript から読めず、30分で消える Cookie に入れる
+        // JWT は「ヘッダー.中身.署名」の3つ。JavaScript から読めず、15分で消える Cookie に入れる
         assertEquals(3, token.getValue().split("\\.").length);
         assertTrue(token.isHttpOnly());
         assertEquals("/", token.getPath());
-        assertEquals(30 * 60, token.getMaxAge());
+        assertEquals(15 * 60, token.getMaxAge());
         assertEquals("Lax", token.getAttribute("SameSite"));
         assertFalse(token.getSecure());
+        // リフレッシュトークンは7日。作り直しとログアウトにだけ送られる
+        Cookie refresh = login.getResponse().getCookie(CurrentUser.REFRESH_COOKIE_NAME);
+        assertTrue(refresh.isHttpOnly());
+        assertEquals("/api/auth", refresh.getPath());
+        assertEquals(7 * 24 * 60 * 60, refresh.getMaxAge());
+        assertEquals("Strict", refresh.getAttribute("SameSite"));
 
         mockMvc.perform(get("/api/auth/me").cookie(token))
                 .andExpect(status().isOk())
@@ -90,25 +96,6 @@ class AuthControllerTest extends ApiTestSupport {
     }
 
     @Test
-    void loggingOutEndsOnlyThisDeviceIncludingItsRenewedTokens() throws Exception {
-        Instant start = Instant.now();
-        tokenService.setClock(Clock.fixed(start, ZoneOffset.UTC));
-        String username = newUsername();
-        Cookie pc = registerAndLogin(username);
-        Cookie phone = login(username);
-
-        // 2分後に操作して作り直された JWT も、同じログインのもの
-        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(2)), ZoneOffset.UTC));
-        Cookie renewed = perform(get("/api/timeline").cookie(pc)).getResponse().getCookie(CurrentUser.COOKIE_NAME);
-        assertNotNull(renewed);
-
-        mockMvc.perform(post("/api/auth/logout").cookie(renewed)).andExpect(status().isNoContent());
-        mockMvc.perform(get("/api/timeline").cookie(renewed)).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/timeline").cookie(pc)).andExpect(status().isUnauthorized());
-        mockMvc.perform(get("/api/timeline").cookie(phone)).andExpect(status().isOk());
-    }
-
-    @Test
     void expiredLogoutRecordsAreCleanedUp() throws Exception {
         Instant start = Instant.now();
         tokenService.setClock(Clock.fixed(start, ZoneOffset.UTC));
@@ -116,7 +103,7 @@ class AuthControllerTest extends ApiTestSupport {
         long recorded = revokedSessions.count();
 
         // 期限を過ぎてから別の人がログアウトすると、古い記録は消える
-        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(31)), ZoneOffset.UTC));
+        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(16)), ZoneOffset.UTC));
         mockMvc.perform(post("/api/auth/logout").cookie(registerAndLogin())).andExpect(status().isNoContent());
         assertEquals(recorded, revokedSessions.count());
     }
@@ -162,26 +149,21 @@ class AuthControllerTest extends ApiTestSupport {
     }
 
     @Test
-    void theTokenExpiresThirtyMinutesAfterTheLastRequest() throws Exception {
+    void theAccessTokenExpiresFifteenMinutesAfterLogin() throws Exception {
         Instant start = Instant.now();
         tokenService.setClock(Clock.fixed(start, ZoneOffset.UTC));
         Cookie token = registerAndLogin();
 
-        // 29分後に操作すると、新しい JWT が届き、そこから30分使える
-        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(29)), ZoneOffset.UTC));
-        MvcResult used = perform(get("/api/timeline").cookie(token));
-        assertEquals(200, used.getResponse().getStatus());
-        Cookie renewed = used.getResponse().getCookie(CurrentUser.COOKIE_NAME);
-        assertNotNull(renewed);
-
-        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(31)), ZoneOffset.UTC));
+        // 操作しても延びない(延ばすのはリフレッシュトークンの役目)
+        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(14)), ZoneOffset.UTC));
+        mockMvc.perform(get("/api/timeline").cookie(token)).andExpect(status().isOk());
+        tokenService.setClock(Clock.fixed(start.plus(Duration.ofMinutes(15)), ZoneOffset.UTC));
         mockMvc.perform(get("/api/timeline").cookie(token)).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("ログインの有効期限が切れました。もう一度ログインしてください"));
-        mockMvc.perform(get("/api/timeline").cookie(renewed)).andExpect(status().isOk());
     }
 
     @Test
-    void aFreshTokenIsNotReissuedOnEveryRequest() throws Exception {
+    void aTokenIsNotReissuedOnOrdinaryRequests() throws Exception {
         Cookie token = registerAndLogin();
         MvcResult result = perform(get("/api/timeline").cookie(token));
         assertEquals(200, result.getResponse().getStatus());

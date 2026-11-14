@@ -45,7 +45,7 @@ public class TokenService {
     private Clock clock = Clock.systemUTC();
 
     public TokenService(@Value("${app.auth.jwt-secret}") String secret,
-                        @Value("${app.auth.token-ttl}") Duration ttl) {
+                        @Value("${app.auth.access-token-ttl}") Duration ttl) {
         byte[] key;
         if (secret.isBlank()) {
             key = new byte[MIN_SECRET_BYTES];

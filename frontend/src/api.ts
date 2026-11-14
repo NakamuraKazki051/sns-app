@@ -13,7 +13,7 @@ export class ApiError extends Error {
   }
 }
 
-// ログイン中に 401 が返ったとき(期限切れ・他の端末でパスワード変更)に呼ぶ。AuthProvider が登録する
+// ログイン中に 401 が返り、作り直しもできなかったとき(7日使わなかった・他の端末でパスワード変更)に呼ぶ。AuthProvider が登録する
 let unauthorizedHandler: (() => void) | null = null;
 
 export function setUnauthorizedHandler(handler: (() => void) | null) {
@@ -28,8 +28,28 @@ type Options = {
   form?: FormData;
 };
 
+// 作り直しの最中なら、その結果を待つ(同時に 401 になった API が、それぞれ作り直さないように)
+let refreshing: Promise<boolean> | null = null;
+
+/** リフレッシュトークン(Cookie SNS_REFRESH)で、アクセストークン(SNS_TOKEN)を作り直す。できたら true */
+function refreshTokens(): Promise<boolean> {
+  refreshing ??= fetch("/api/auth/refresh", { method: "POST", credentials: "same-origin" })
+    .then((response) => response.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
+
+/** 401 のとき作り直してやり直す API か。ログイン・登録などの 401 はパスワード違いなどなので除く */
+function canRefresh(path: string): boolean {
+  return !path.startsWith("/api/auth/") || path === "/api/auth/me";
+}
+
 /**
- * API を呼ぶ。Cookie(ログインの JWT)は同じオリジンなので自動で付く。
+ * API を呼ぶ。Cookie(ログインのトークン)は同じオリジンなので自動で付く。
+ * アクセストークン(15分)が切れて 401 になったら、リフレッシュトークンで作り直して1回だけやり直す。
  * 失敗したら ApiError を投げる
  */
 export async function api<T>(path: string, { method = "GET", body, form }: Options = {}): Promise<T> {
@@ -42,9 +62,13 @@ export async function api<T>(path: string, { method = "GET", body, form }: Optio
     payload = JSON.stringify(body);
   }
 
+  const send = () => fetch(path, { method, headers, body: payload, credentials: "same-origin" });
   let response: Response;
   try {
-    response = await fetch(path, { method, headers, body: payload, credentials: "same-origin" });
+    response = await send();
+    if (response.status === 401 && canRefresh(path) && (await refreshTokens())) {
+      response = await send();
+    }
   } catch {
     throw new ApiError(0, "サーバーに接続できません。時間をおいてもう一度お試しください");
   }

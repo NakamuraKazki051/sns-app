@@ -297,6 +297,7 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | --- | --- | --- |
 | users | id（UUID）, email, password_hash, username, display_name, bio, icon_updated_at, created_at, email_verified_at, token_version, totp_secret, totp_pending_secret, totp_last_step | email・username に一意制約。token_version はログインの JWT の世代（`V5`）。totp_* は2段階認証の鍵と、最後に使ったコードの時間枠（`V13`） |
 | revoked_sessions | session_id（主キー、JWT の sid）, expires_at | ログアウトしたログイン。期限を過ぎた行はログアウトのたびに消す（`V5__token_revocation.sql`） |
+| refresh_tokens | token_hash（主キー、SHA-256）, session_id, user_id, token_version, expires_at, used_at | (session_id)、(expires_at)。アカウントを消すと一緒に消える。使うたびに取り替える（`V14__refresh_tokens.sql`、docs/auth.md） |
 | password_resets | token_hash（主キー、SHA-256）, user_id, expires_at | (user_id)。アカウントを消すと一緒に消える（`V6__password_resets.sql`） |
 | blocks | id, blocker_id, blocked_id, created_at | (blocker_id, blocked_id) に一意制約、(blocked_id)。どちらのユーザーを消しても一緒に消える（`V8__blocks_mutes.sql`） |
 | mutes | id, muter_id, muted_id, created_at | (muter_id, muted_id) に一意制約。どちらのユーザーを消しても一緒に消える |
