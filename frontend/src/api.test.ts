@@ -101,6 +101,36 @@ describe("api: アクセストークンの作り直し", () => {
     }
   });
 
+  it("30秒ごとの新着チェックがあっても、作り直しの予定は後ろにずれない", async () => {
+    vi.useFakeTimers();
+    try {
+      // 本物のサーバーと同じく、残り秒数は時間とともに減る
+      let expiresAt = Date.now() + 900_000;
+      const fetchMock = vi.fn(async (url: string) => {
+        if (url === "/api/auth/refresh") expiresAt = Date.now() + 900_000;
+        const left = String(Math.floor((expiresAt - Date.now()) / 1000));
+        return url === "/api/auth/refresh"
+          ? new Response(null, { status: 204, headers: { "X-Access-Token-Expires-In": left } })
+          : new Response("[]", { status: 200, headers: { "X-Access-Token-Expires-In": left } });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      await api("/api/timeline");
+      // 30秒ごとに API を呼びながら、14分まで進める
+      for (let t = 30; t < 840; t += 30) {
+        await vi.advanceTimersByTimeAsync(30_000);
+        await api("/api/notifications/unread-count");
+      }
+      expect(calls(fetchMock as never, "/api/auth/refresh")).toBe(0);
+      // 期限の60秒前(840秒)に作り直す
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(calls(fetchMock as never, "/api/auth/refresh")).toBe(1);
+    } finally {
+      cancelScheduledRefresh();
+      vi.useRealTimers();
+    }
+  });
+
   it("タブが止められて期限を過ぎていたら、API を送る前に作り直す(401 を出さない)", async () => {
     vi.useFakeTimers();
     try {
