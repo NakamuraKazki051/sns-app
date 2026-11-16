@@ -2,12 +2,17 @@ package com.snsapp.api.auth;
 
 import com.snsapp.api.ApiTestSupport;
 import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -29,12 +34,37 @@ class RefreshTokenConcurrencyTest extends ApiTestSupport {
 
     private static final int ROUNDS = 10;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private TokenService tokenService;
+
+    // トランザクションで包まないので、作ったものは DB に残る。ほかのテストの数え方を狂わせないよう、最後に消す
+    private final List<String> usernames = new ArrayList<>();
+    private final List<String> sessionIds = new ArrayList<>();
+
+    @AfterEach
+    void cleanUp() {
+        // ユーザーを消すと、リフレッシュトークンも一緒に消える(ON DELETE CASCADE)
+        usernames.forEach(name -> jdbc.update("delete from users where username = ?", name));
+        sessionIds.forEach(id -> jdbc.update("delete from revoked_sessions where session_id = ?", id));
+    }
+
+    private String registerUser() throws Exception {
+        String username = newUsername();
+        mockMvc.perform(json(post("/api/auth/register"), registerParams(username)));
+        usernames.add(username);
+        return username;
+    }
+
     private Cookie[] signIn(String username) throws Exception {
         MvcResult result = perform(json(post("/api/auth/login"),
                 Map.of("email", username + "@example.com", "password", PASSWORD)));
         assertEquals(200, result.getResponse().getStatus());
-        return new Cookie[]{result.getResponse().getCookie(CurrentUser.COOKIE_NAME),
-                result.getResponse().getCookie(CurrentUser.REFRESH_COOKIE_NAME)};
+        Cookie access = result.getResponse().getCookie(CurrentUser.COOKIE_NAME);
+        sessionIds.add(tokenService.verify(access.getValue()).orElseThrow().sessionId());
+        return new Cookie[]{access, result.getResponse().getCookie(CurrentUser.REFRESH_COOKIE_NAME)};
     }
 
     /** 2つの操作を、できるだけ同時に始める */
@@ -59,8 +89,7 @@ class RefreshTokenConcurrencyTest extends ApiTestSupport {
 
     @Test
     void twoRefreshesOfTheSameTokenRotateItOnlyOnce() throws Exception {
-        String username = newUsername();
-        mockMvc.perform(json(post("/api/auth/register"), registerParams(username)));
+        String username = registerUser();
         for (int i = 0; i < ROUNDS; i++) {
             Cookie refresh = signIn(username)[1];
             MockHttpServletResponse[] results = together(
@@ -80,8 +109,7 @@ class RefreshTokenConcurrencyTest extends ApiTestSupport {
 
     @Test
     void aRefreshRacingALogoutNeverKeepsTheLoginAlive() throws Exception {
-        String username = newUsername();
-        mockMvc.perform(json(post("/api/auth/register"), registerParams(username)));
+        String username = registerUser();
         for (int i = 0; i < ROUNDS; i++) {
             Cookie[] tokens = signIn(username);
             MockHttpServletResponse[] results = together(

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, ApiError, setUnauthorizedHandler } from "./api";
+import { api, ApiError, cancelScheduledRefresh, setUnauthorizedHandler } from "./api";
 
 type Handler = (url: string) => { status: number; body?: unknown };
 
@@ -58,6 +58,69 @@ describe("api: アクセストークンの作り直し", () => {
     await expect(api("/api/timeline")).rejects.toEqual(new ApiError(401, "ログインの有効期限が切れました"));
     expect(calls(fetchMock, "/api/timeline")).toBe(1);
     expect(onUnauthorized).toHaveBeenCalledOnce();
+  });
+
+  it("作り直しがサーバーの不調で失敗したときは、ログイン切れにしない", async () => {
+    const onUnauthorized = vi.fn();
+    setUnauthorizedHandler(onUnauthorized);
+    mockFetch((url) => (url === "/api/auth/refresh" ? { status: 500, body: {} } : { status: 401, body: {} }));
+
+    await expect(api("/api/timeline")).rejects.toMatchObject({ status: 0 });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
+  it("アクセストークンが切れる少し前に、先回りして作り直す", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn(async (url: string) =>
+        url === "/api/auth/refresh"
+          ? new Response(null, { status: 204, headers: { "X-Access-Token-Expires-In": "900" } })
+          : new Response("[]", { status: 200, headers: { "X-Access-Token-Expires-In": "100" } }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      await api("/api/timeline");
+      // 残り100秒なら、2割(20秒)を残して80秒後に作り直す
+      await vi.advanceTimersByTimeAsync(79_000);
+      expect(calls(fetchMock as never, "/api/auth/refresh")).toBe(0);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(calls(fetchMock as never, "/api/auth/refresh")).toBe(1);
+      // 作り直したら、次は残り900秒から60秒を残して840秒後
+      await vi.advanceTimersByTimeAsync(839_000);
+      expect(calls(fetchMock as never, "/api/auth/refresh")).toBe(1);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(calls(fetchMock as never, "/api/auth/refresh")).toBe(2);
+
+      // ログアウトしたら、もう作り直さない
+      cancelScheduledRefresh();
+      await vi.advanceTimersByTimeAsync(2_000_000);
+      expect(calls(fetchMock as never, "/api/auth/refresh")).toBe(2);
+    } finally {
+      cancelScheduledRefresh();
+      vi.useRealTimers();
+    }
+  });
+
+  it("タブが止められて期限を過ぎていたら、API を送る前に作り直す(401 を出さない)", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn(async (url: string) =>
+        url === "/api/auth/refresh"
+          ? new Response(null, { status: 204, headers: { "X-Access-Token-Expires-In": "900" } })
+          : new Response("[]", { status: 200, headers: { "X-Access-Token-Expires-In": "100" } }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      await api("/api/timeline");
+
+      // タイマーは動かさずに時計だけ進める(Chrome が隠れたタブを止めたときと同じ)
+      vi.setSystemTime(Date.now() + 200_000);
+      await api("/api/notifications");
+      const order = fetchMock.mock.calls.map(([url]) => url);
+      expect(order).toEqual(["/api/timeline", "/api/auth/refresh", "/api/notifications"]);
+    } finally {
+      cancelScheduledRefresh();
+      vi.useRealTimers();
+    }
   });
 
   it("ログインの 401(パスワード違い)では作り直さない", async () => {

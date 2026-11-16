@@ -96,6 +96,27 @@ class RefreshTokenTest extends ApiTestSupport {
     }
 
     @Test
+    void responsesTellHowManySecondsTheAccessTokenHasLeft() throws Exception {
+        startClock();
+        String username = registerUser();
+        MvcResult login = perform(json(post("/api/auth/login"),
+                Map.of("email", username + "@example.com", "password", PASSWORD)));
+        assertEquals("900", login.getResponse().getHeader(CurrentUser.EXPIRES_IN_HEADER));
+        Tokens tokens = Tokens.of(login);
+
+        // ログインが要る API は、残りの秒数を返す(画面は切れる少し前に先回りして作り直す)
+        at(Duration.ofMinutes(14));
+        MvcResult used = perform(get("/api/timeline").cookie(tokens.access()));
+        assertEquals("60", used.getResponse().getHeader(CurrentUser.EXPIRES_IN_HEADER));
+
+        MvcResult refreshed = refresh(tokens.refresh());
+        assertEquals("900", refreshed.getResponse().getHeader(CurrentUser.EXPIRES_IN_HEADER));
+        // ログインが要らない API には付けない
+        assertNull(perform(post("/api/auth/forgot-password").contentType("application/json")
+                .content("{\"email\":\"nobody@example.com\"}")).getResponse().getHeader(CurrentUser.EXPIRES_IN_HEADER));
+    }
+
+    @Test
     void usingTheRefreshTokenKeepsTheLoginAliveForSevenDaysFromTheLastUse() throws Exception {
         startClock();
         Tokens tokens = signIn(registerUser());

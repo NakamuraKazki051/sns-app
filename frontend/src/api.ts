@@ -28,19 +28,63 @@ type Options = {
   form?: FormData;
 };
 
-// 作り直しの最中なら、その結果を待つ(同時に 401 になった API が、それぞれ作り直さないように)
-let refreshing: Promise<boolean> | null = null;
+/**
+ * 作り直しの結果。ok: できた / unauthorized: リフレッシュトークンが使えない(ログイン切れ) /
+ * error: サーバーの不調・通信の失敗(ログイン切れとは限らないので、ログアウト扱いにしない)
+ */
+export type RefreshResult = "ok" | "unauthorized" | "error";
 
-/** リフレッシュトークン(Cookie SNS_REFRESH)で、アクセストークン(SNS_TOKEN)を作り直す。できたら true */
-function refreshTokens(): Promise<boolean> {
+// 作り直しの最中なら、その結果を待つ(同時に 401 になった API が、それぞれ作り直さないように)
+let refreshing: Promise<RefreshResult> | null = null;
+
+/** サーバーが応答に付ける、アクセストークンの残り秒数(CurrentUser.EXPIRES_IN_HEADER) */
+const EXPIRES_IN_HEADER = "X-Access-Token-Expires-In";
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * アクセストークンが切れる時刻(この端末の時計で)。隠れたタブは Chrome がタイマーごと止めるので、
+ * 先回りの作り直しが間に合わないことがある。再開して API を送るときに過ぎていれば、先に作り直す
+ */
+let accessExpiresAt: number | undefined;
+
+/**
+ * アクセストークンが切れる少し前に、先回りして作り直す。切れてから 401 を受けて作り直すと、
+ * そのたびにブラウザのコンソールに 401 のエラーが出るため。残りの2割(最大60秒)を残して作り直す
+ */
+function scheduleRefresh(response: Response) {
+  const header = response.headers.get(EXPIRES_IN_HEADER);
+  const seconds = Number(header);
+  if (header === null || !Number.isFinite(seconds) || seconds <= 0) return;
+  accessExpiresAt = Date.now() + seconds * 1000;
+  const delay = seconds - Math.min(60, seconds * 0.2);
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => void refreshTokens(), delay * 1000);
+}
+
+/** ログアウトしたら、先回りの作り直しをやめる */
+export function cancelScheduledRefresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = undefined;
+  accessExpiresAt = undefined;
+}
+
+/** リフレッシュトークン(Cookie SNS_REFRESH)で、アクセストークン(SNS_TOKEN)を作り直す */
+export function refreshTokens(): Promise<RefreshResult> {
   refreshing ??= fetch("/api/auth/refresh", { method: "POST", credentials: "same-origin" })
-    .then((response) => response.ok)
-    .catch(() => false)
+    .then((response): RefreshResult => {
+      if (response.ok) {
+        scheduleRefresh(response);
+        return "ok";
+      }
+      return response.status === 401 ? "unauthorized" : "error";
+    })
+    .catch((): RefreshResult => "error")
     .finally(() => {
       refreshing = null;
     });
   return refreshing;
 }
+
+const OFFLINE = "サーバーに接続できません。時間をおいてもう一度お試しください";
 
 /** 401 のとき作り直してやり直す API か。ログイン・登録などの 401 はパスワード違いなどなので除く */
 function canRefresh(path: string): boolean {
@@ -64,14 +108,29 @@ export async function api<T>(path: string, { method = "GET", body, form }: Optio
 
   const send = () => fetch(path, { method, headers, body: payload, credentials: "same-origin" });
   let response: Response;
+  let refreshResult: RefreshResult | undefined;
   try {
+    // 切れているのが分かっていれば、401 を受ける前に作り直しておく(結果は下の 401 の処理で見る)
+    let early: RefreshResult | undefined;
+    if (accessExpiresAt !== undefined && Date.now() >= accessExpiresAt && canRefresh(path)) {
+      early = await refreshTokens();
+    }
     response = await send();
-    if (response.status === 401 && canRefresh(path) && (await refreshTokens())) {
-      response = await send();
+    if (response.status === 401 && canRefresh(path)) {
+      // 先に作り直せなかったなら、同じことを繰り返さない
+      refreshResult = early !== undefined && early !== "ok" ? early : await refreshTokens();
+      if (refreshResult === "ok") {
+        response = await send();
+      }
     }
   } catch {
-    throw new ApiError(0, "サーバーに接続できません。時間をおいてもう一度お試しください");
+    throw new ApiError(0, OFFLINE);
   }
+  if (refreshResult === "error") {
+    // 作り直しがサーバーの不調で失敗しただけなら、ログイン切れにはしない(しばらくしてやり直せばよい)
+    throw new ApiError(0, OFFLINE);
+  }
+  scheduleRefresh(response);
 
   if (response.status === 204) {
     return undefined as T;

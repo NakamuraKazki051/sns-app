@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-/** @PublicApi の付いていない API は、入力の確認より先にログインを確かめる */
+/** @PublicApi の付いていない API は、入力の確認より先にログインを確かめ、アクセストークンの残り秒数をヘッダーで伝える */
 @Component
 public class LoginInterceptor implements HandlerInterceptor {
 
@@ -21,6 +21,7 @@ public class LoginInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         if (handler instanceof HandlerMethod method && !method.hasMethodAnnotation(PublicApi.class)) {
             currentUser.require(request);
+            currentUser.writeExpiresIn(request, response);
         }
         return true;
     }

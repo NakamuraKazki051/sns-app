@@ -36,7 +36,7 @@ public class TokenService {
     private static final String SESSION_CLAIM = "sid";
     private static final String VERSION_CLAIM = "ver";
 
-    public record Verified(String userId, String sessionId, int version, Instant issuedAt) {
+    public record Verified(String userId, String sessionId, int version, Instant issuedAt, Instant expiresAt) {
     }
 
     private final MACSigner signer;
@@ -111,7 +111,8 @@ public class TokenService {
                     || !clock.instant().isBefore(expiresAt.toInstant())) {
                 return Optional.empty();
             }
-            return Optional.of(new Verified(claims.getSubject(), sessionId, version, issuedAt.toInstant()));
+            return Optional.of(new Verified(claims.getSubject(), sessionId, version, issuedAt.toInstant(),
+                    expiresAt.toInstant()));
         } catch (ParseException | JOSEException | IllegalStateException e) {
             return Optional.empty();
         }
