@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
-import { api, setUnauthorizedHandler } from "./api";
+import { api, cancelScheduledRefresh, setUnauthorizedHandler } from "./api";
 import type { Me } from "./types";
 
 export type RegisterParams = { email: string; password: string; username: string; displayName: string };
@@ -53,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       if (loggedIn.current) setSessionExpired(true);
+      cancelScheduledRefresh();
       setMe(null);
     });
     return () => setUnauthorizedHandler(null);
@@ -79,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api<void>("/api/auth/logout", { method: "POST" });
     } finally {
       // サーバーに届かなくても、画面上はログアウトする
+      cancelScheduledRefresh();
       setSignedOut(true);
       setMe(null);
     }
@@ -87,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const deleteAccount = useCallback(async (password: string) => {
     await api<void>("/api/users/me", { method: "DELETE", body: { password } });
     // 自分でログアウトしたときと同じく、戻り先を付けずにログイン画面へ
+    cancelScheduledRefresh();
     setSignedOut(true);
     setMe(null);
   }, []);

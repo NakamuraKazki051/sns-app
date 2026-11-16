@@ -1,4 +1,5 @@
 import { iconUrl } from "../api";
+import { AuthImage } from "./AuthImage";
 import type { PublicUser } from "../types";
 
 const COLORS = ["#1d9bf0", "#f91880", "#00ba7c", "#7856ff", "#ff7a00", "#e0245e"];
@@ -24,7 +25,8 @@ export function Avatar({ user, large = false, previewSrc }: Props) {
   const src = previewSrc !== undefined ? previewSrc : iconUrl(user);
   return (
     <div className={large ? "avatar large" : "avatar"} style={{ background: colorOf(user.username) }} aria-hidden="true">
-      {src ? <img src={src} alt="" /> : ([...user.displayName][0] ?? "?")}
+      {/* 保存前のプレビュー(data URL)はサーバーから読まないので、作り直しは要らない */}
+      {src ? (previewSrc !== undefined ? <img src={src} alt="" /> : <AuthImage src={src} alt="" />) : ([...user.displayName][0] ?? "?")}
     </div>
   );
 }

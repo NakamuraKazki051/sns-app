@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { AuthImage } from "./AuthImage";
 
 type Props = {
   src: string;
@@ -39,7 +40,7 @@ export function ImageViewer({ src, alt, onClose }: Props) {
 
   return (
     <div className="image-viewer" role="dialog" aria-modal="true" aria-label="画像" onClick={onClose}>
-      <img src={src} alt={alt} onClick={(e) => e.stopPropagation()} />
+      <AuthImage src={src} alt={alt} onClick={(e) => e.stopPropagation()} />
       <button type="button" className="image-viewer-close" ref={closeRef} aria-label="閉じる" onClick={onClose}>
         ×
       </button>

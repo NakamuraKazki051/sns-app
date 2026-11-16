@@ -6,6 +6,8 @@ import com.snsapp.api.user.UserRepository;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
@@ -13,6 +15,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -25,12 +28,20 @@ import java.util.function.Supplier;
 @Component
 public class CurrentUser {
 
+    private static final Logger log = LoggerFactory.getLogger(CurrentUser.class);
+
     public static final String COOKIE_NAME = "SNS_TOKEN";
     public static final String REFRESH_COOKIE_NAME = "SNS_REFRESH";
     // リフレッシュトークンは、作り直し(/api/auth/refresh)とログアウト(/api/auth/logout)にだけ送らせる
     static final String REFRESH_COOKIE_PATH = "/api/auth";
     // 1つのリクエストの中で確かめ終わった人。RequestLogFilter がログに出す
     public static final String VERIFIED_KEY = CurrentUser.class.getName() + ".verified";
+    private static final String EXPIRES_AT_KEY = CurrentUser.class.getName() + ".expiresAt";
+    /**
+     * アクセストークンの残り秒数。画面はこれを見て、切れる少し前に先回りして作り直す
+     * (切れてから 401 を受けて作り直すと、そのたびにブラウザのコンソールにエラーが出るため)
+     */
+    public static final String EXPIRES_IN_HEADER = "X-Access-Token-Expires-In";
     private static final String EXPIRED = "ログインの有効期限が切れました。もう一度ログインしてください";
     static final int DEADLOCK_ATTEMPTS = 3;
 
@@ -62,6 +73,7 @@ public class CurrentUser {
                 .filter(this::stillValid)
                 .orElseThrow(() -> ApiException.unauthorized(EXPIRED));
         request.setAttribute(VERIFIED_KEY, verified.userId());
+        request.setAttribute(EXPIRES_AT_KEY, verified.expiresAt());
         return verified.userId();
     }
 
@@ -74,6 +86,14 @@ public class CurrentUser {
                 .map(user -> user.getTokenVersion() == verified.version())
                 .orElse(false);
         return currentVersion && !revokedSessions.existsById(verified.sessionId());
+    }
+
+    /** require() で確かめたアクセストークンの残り秒数を、応答のヘッダーで伝える(LoginInterceptor が呼ぶ) */
+    void writeExpiresIn(HttpServletRequest request, HttpServletResponse response) {
+        if (request.getAttribute(EXPIRES_AT_KEY) instanceof Instant expiresAt) {
+            long seconds = Duration.between(tokens.now(), expiresAt).toSeconds();
+            response.setHeader(EXPIRES_IN_HEADER, Long.toString(Math.max(seconds, 0)));
+        }
     }
 
     /** ログインした人に、新しいログインのアクセストークンとリフレッシュトークンを Cookie で渡す */
@@ -133,6 +153,8 @@ public class CurrentUser {
                 if (attempt >= DEADLOCK_ATTEMPTS) {
                     throw e;
                 }
+                // どのくらい起きているかを CloudWatch Logs で見られるように残す
+                log.warn("ログインの処理がデッドロックで取り消されたので、やり直します({}回目)", attempt);
             }
         }
     }
@@ -158,6 +180,7 @@ public class CurrentUser {
 
     private void writeAccessCookie(HttpServletResponse response, String value) {
         writeCookie(response, COOKIE_NAME, value, "/", "Lax", tokens.ttl());
+        response.setHeader(EXPIRES_IN_HEADER, Long.toString(tokens.ttl().toSeconds()));
     }
 
     // 画面から fetch で送るだけなので Strict にする(ほかのサイトから来たときは送らない)

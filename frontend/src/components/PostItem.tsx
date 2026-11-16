@@ -8,6 +8,7 @@ import { countChars, fullTime, POST_MAX, relativeTime } from "../text";
 import type { Post } from "../types";
 import { Avatar } from "./Avatar";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { AuthImage } from "./AuthImage";
 import { ImageViewer } from "./ImageViewer";
 
 type Props = {
@@ -175,7 +176,7 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true, isNew
               setViewing(true);
             }}
           >
-            <img
+            <AuthImage
               src={post.image.url}
               width={post.image.width}
               height={post.image.height}
