@@ -45,6 +45,7 @@ let refreshTimer: ReturnType<typeof setTimeout> | undefined;
  * 先回りの作り直しが間に合わないことがある。再開して API を送るときに過ぎていれば、先に作り直す
  */
 let accessExpiresAt: number | undefined;
+const SAME_TOKEN_TOLERANCE_MS = 5_000;
 
 /**
  * アクセストークンが切れる少し前に、先回りして作り直す。切れてから 401 を受けて作り直すと、
@@ -54,7 +55,12 @@ function scheduleRefresh(response: Response) {
   const header = response.headers.get(EXPIRES_IN_HEADER);
   const seconds = Number(header);
   if (header === null || !Number.isFinite(seconds) || seconds <= 0) return;
-  accessExpiresAt = Date.now() + seconds * 1000;
+  const expiresAt = Date.now() + seconds * 1000;
+  // 同じトークンの応答なら、予定を立て直さない。残りが減るたびに立て直すと「残りの2割」も縮み、
+  // 作り直しが期限の直前までずれ込む(AWS で、900秒のうち893秒後になっていた)。
+  // 秒の切り捨てと通信の時間で数秒ずれるので、5秒以内の差は同じトークンとみなす
+  if (accessExpiresAt !== undefined && Math.abs(expiresAt - accessExpiresAt) < SAME_TOKEN_TOLERANCE_MS) return;
+  accessExpiresAt = expiresAt;
   const delay = seconds - Math.min(60, seconds * 0.2);
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => void refreshTokens(), delay * 1000);
