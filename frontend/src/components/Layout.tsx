@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet } from "react-router";
 import { api } from "../api";
 import { useAuth, useMe } from "../auth";
 import { useUnreadMessages, useUnreadNotifications } from "../notifications";
+import { startRealtime, stopRealtime } from "../realtime";
 import type { MessagesOutlet } from "../pages/MessagesPage";
 import type { NotificationsOutlet } from "../pages/NotificationsPage";
 
@@ -21,6 +22,11 @@ export function Layout() {
   const { logout } = useAuth();
   const [theme, setTheme] = useState<Theme>(() => document.documentElement.dataset.theme as Theme);
   const headerRef = useRef<HTMLElement>(null);
+  // ログインしている間、サーバーからの知らせ(F-28)を受け取る
+  useEffect(() => {
+    startRealtime();
+    return stopRealtime;
+  }, []);
   const unread = useUnreadNotifications();
   const unreadMessages = useUnreadMessages();
   // 管理者なら「通報」をメニューに出す(対応前の数も)。開くたびに1回だけ聞く

@@ -3,6 +3,7 @@ package com.snsapp.api.notification;
 import com.snsapp.api.block.Visibility;
 import com.snsapp.api.post.Post;
 import com.snsapp.api.user.UserRepository;
+import com.snsapp.api.realtime.RealtimeHub;
 import org.springframework.stereotype.Service;
 
 /**
@@ -15,8 +16,11 @@ public class NotificationService {
     private final NotificationRepository notifications;
     private final UserRepository users;
     private final Visibility visibility;
+    private final RealtimeHub realtime;
 
-    public NotificationService(NotificationRepository notifications, UserRepository users, Visibility visibility) {
+    public NotificationService(NotificationRepository notifications, UserRepository users, Visibility visibility,
+                               RealtimeHub realtime) {
+        this.realtime = realtime;
         this.notifications = notifications;
         this.users = users;
         this.visibility = visibility;
@@ -38,7 +42,9 @@ public class NotificationService {
 
     /** いいね・リポスト・フォローを取り消したら、その通知も消す(付けたり外したりで通知が溜まらないように) */
     public void retract(Notification.Type type, String actorId, String recipientId, Long postId) {
-        notifications.deleteMatching(recipientId, actorId, type, postId);
+        if (notifications.deleteMatching(recipientId, actorId, type, postId) > 0) {
+            realtime.send(recipientId, RealtimeHub.Event.NOTIFICATION);
+        }
     }
 
     private void notify(String recipientId, String actorId, Notification.Type type, Post post) {
@@ -50,5 +56,6 @@ public class NotificationService {
             notifications.deleteMatching(recipientId, actorId, type, post == null ? null : post.getId());
         }
         notifications.save(new Notification(recipientId, users.getReferenceById(actorId), type, post));
+        realtime.send(recipientId, RealtimeHub.Event.NOTIFICATION);
     }
 }

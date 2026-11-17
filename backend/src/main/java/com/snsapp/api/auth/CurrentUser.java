@@ -79,6 +79,12 @@ public class CurrentUser {
         return verified.userId();
     }
 
+    /** require() で確かめたアクセストークンの期限(WebSocket のつながりを、この時刻で閉じる) */
+    public Instant expiresAt(HttpServletRequest request) {
+        require(request);
+        return (Instant) request.getAttribute(EXPIRES_AT_KEY);
+    }
+
     /** この端末のログインの ID(JWT の sid)。ログイン中の端末の一覧で「この端末」に印を付ける */
     public String requireSessionId(HttpServletRequest request) {
         require(request);

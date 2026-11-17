@@ -31,18 +31,23 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(loginInterceptor).addPathPatterns("/api/**");
     }
 
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        // Cookie付きのリクエストを許可するため、任意のサイトではなくローカル開発用のオリジンに限定する
-        // (「*」だと、ログイン中に開いた外部サイトから投稿できてしまう)
+    /**
+     * Cookie 付きのリクエストを受けてよいオリジン。任意のサイトではなくローカル開発用と、設定したものに限る
+     * (「*」だと、ログイン中に開いた外部サイトから投稿できてしまう)。WebSocket(RealtimeConfig)も同じものを使う
+     */
+    public String[] allowedOriginPatterns() {
         List<String> origins = new ArrayList<>(List.of("http://localhost:*", "http://127.0.0.1:*"));
         Arrays.stream(extraAllowedOrigins.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty() && !origin.contains("*"))
                 .forEach(origins::add);
+        return origins.toArray(String[]::new);
+    }
 
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOriginPatterns(origins.toArray(String[]::new))
+                .allowedOriginPatterns(allowedOriginPatterns())
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE")
                 .allowCredentials(true);
     }

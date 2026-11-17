@@ -31,7 +31,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from Notification n where n.recipientId = :recipientId and n.actor.id = :actorId and n.type = :type"
             + " and ((:postId is null and n.post is null) or n.post.id = :postId)")
-    void deleteMatching(@Param("recipientId") String recipientId, @Param("actorId") String actorId,
+    int deleteMatching(@Param("recipientId") String recipientId, @Param("actorId") String actorId,
                         @Param("type") Notification.Type type, @Param("postId") Long postId);
 
     @Transactional
