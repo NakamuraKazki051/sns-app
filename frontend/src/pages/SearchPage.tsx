@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../api";
+import { RecommendedUsers } from "../components/RecommendedUsers";
 import { UserList } from "../components/UserList";
 import { hashtagPath } from "../hashtags";
 import { loadNothing, loadUsers } from "../loaders";
@@ -48,6 +49,7 @@ export function SearchPage() {
       ) : (
         <>
           <p className="empty">ユーザー名や表示名の一部を入れて検索してください</p>
+          <RecommendedUsers />
           <Trends />
         </>
       )}

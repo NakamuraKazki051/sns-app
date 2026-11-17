@@ -26,6 +26,10 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query("delete from User u where u.emailVerifiedAt is null and u.createdAt < :before")
     void deleteUnverifiedBefore(@Param("before") Instant before);
 
+    /** おすすめ(F-27): 最近登録した人(メールの確認が済んだ人だけ、新しい順) */
+    @Query("select u.id from User u where u.emailVerifiedAt is not null and u.id not in :excluded order by u.createdAt desc")
+    List<String> findNewestVerifiedIds(@Param("excluded") Collection<String> excluded, Limit limit);
+
     /** 鍵アカウント(F-26)のうち、viewer がフォローしていない人(viewer 本人は除く)。この人たちの投稿は viewer に見えない */
     @Query("select u.id from User u where u.privateAccount = true and u.id <> :viewer"
             + " and u.id not in (select f.followee.id from Follow f where f.follower.id = :viewer)")
