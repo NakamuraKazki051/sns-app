@@ -1,112 +1,43 @@
-// API の応答の形。バックエンドの *Dtos.java と揃える
+// API の応答の形。中身は API 仕様書から自動で作った api-schema.ts(F-29)にあり、ここでは画面で使う名前を付けるだけ。
+// サーバーの形が変わると api-schema.ts が作り直され、合わない画面のコードは型の確かめ(tsc)で分かる
+import type * as Api from "./api-schema";
 
 /** ログインしている本人(メールアドレスを含む) */
-export type Me = {
-  id: string;
-  email: string;
-  username: string;
-  displayName: string;
-  iconUpdatedAt: string | null;
-  bio: string | null;
-  createdAt: string;
-  /** 鍵アカウントか(F-26) */
-  privateAccount?: boolean;
-};
+export type Me = Api.UserResponse;
 
 /** 投稿の投稿者など、他の人にも見せる部分 */
-export type PublicUser = {
-  id: string;
-  username: string;
-  displayName: string;
-  iconUpdatedAt: string | null;
-};
+export type PublicUser = Api.PublicUser;
 
 /** 検索結果・フォロー一覧の1人分 */
-export type UserSummary = PublicUser & { bio: string | null };
+export type UserSummary = Api.UserSummary;
 
-export type UserPage = { users: UserSummary[]; nextCursor: string | null };
+export type UserPage = Api.UserPage;
 
-export type Profile = PublicUser & {
-  bio: string | null;
-  postsCount: number;
-  followingCount: number;
-  followersCount: number;
-  followedByMe: boolean;
-  createdAt: string;
-  /** 自分がこの人をブロック・ミュートしているか(F-20) */
-  blocking: boolean;
-  muting: boolean;
-  /** 鍵アカウントか(F-26) */
-  privateAccount: boolean;
-  /** 自分がフォローのリクエストを送って、承認を待っているか */
-  followRequested: boolean;
-  /** 自分がこの人の投稿・フォロー一覧を見られるか(鍵アカウントで、フォローしていなければ false) */
-  canViewPosts: boolean;
-};
+export type Profile = Api.ProfileResponse;
 
-export type Post = {
-  id: string;
-  body: string;
-  createdAt: string;
-  user: PublicUser;
-  likesCount: number;
-  repliesCount: number;
-  likedByMe: boolean;
-  repostsCount: number;
-  repostedByMe: boolean;
-  /** タイムラインでリポストとして出すときの、リポストした人。元の投稿なら null */
-  repostedBy: PublicUser | null;
-  /** 添付した画像(1枚まで)。無ければ null */
-  image: PostImage | null;
-  /** 本文を最後に直した時刻(F-19)。直していなければ null */
-  editedAt?: string | null;
+export type Post = Api.PostResponse & {
   /** サーバーから読んだのではなく、投稿した直後に画面で一覧へ足した行(画面だけの目印) */
   addedHere?: boolean;
 };
 
 /** 投稿の画像。幅と高さで、読み込む前に枠の形を決める(読み込んだときに一覧がガタつかないように) */
-export type PostImage = { url: string; width: number; height: number };
+export type PostImage = Api.ImageResponse;
 
 /** nextCursor は次のページを読むときに before に渡す値(続きがなければ null) */
-export type PostPage = { posts: Post[]; hasMore: boolean; nextCursor: string | null };
+export type PostPage = Api.PageResponse;
 
 /** 今見ている一覧より新しい、他の人の投稿の数(上限100)と、その投稿者(3人まで) */
-export type NewPosts = { count: number; users: PublicUser[] };
+export type NewPosts = Api.NewPostsResponse;
 
-export type Reply = {
-  id: string;
-  postId: string;
-  body: string;
-  createdAt: string;
-  user: PublicUser;
-};
+export type Reply = Api.ReplyResponse;
 
-export type ReplyPage = { replies: Reply[]; hasMore: boolean };
+export type ReplyPage = Api.ReplyPage;
 
 /** 通知1件(F-21)。post はどの投稿への反応か(フォローでは null) */
-export type Notification = {
-  id: string;
-  type: "LIKE" | "REPLY" | "REPOST" | "FOLLOW" | "FOLLOW_REQUEST";
-  actor: PublicUser;
-  post: { id: string; body: string } | null;
-  createdAt: string;
-  read: boolean;
-};
+export type Notification = Api.NotificationResponse;
 
 /** DM 1通(F-23)。mine は自分が送ったもの、read は受け取った人が読んだか */
-export type DirectMessage = {
-  id: string;
-  mine: boolean;
-  body: string;
-  createdAt: string;
-  read: boolean;
-  /** 付けた画像。無ければ null(古いサーバーの応答では無い) */
-  image?: PostImage | null;
-};
+export type DirectMessage = Api.MessageResponse;
 
 /** DM の会話一覧の1件 */
-export type Conversation = {
-  partner: PublicUser;
-  lastMessage: DirectMessage;
-  unreadCount: number;
-};
+export type Conversation = Api.Conversation;

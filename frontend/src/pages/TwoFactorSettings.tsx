@@ -3,8 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, errorMessage } from "../api";
 import { useFeedback } from "../feedback";
 
-type Status = { enabled: boolean; recoveryCodesLeft: number };
-type Setup = { secret: string; uri: string };
+import type { Setup, Status } from "../api-schema";
 
 /** 鍵を4文字ずつ区切る(手で入れるとき読みやすいように) */
 export function groupSecret(secret: string): string {

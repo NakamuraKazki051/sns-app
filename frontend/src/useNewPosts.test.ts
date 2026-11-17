@@ -7,7 +7,7 @@ const BOB: PublicUser = { id: "u2", username: "bob", displayName: "ボブ", icon
 function post(id: string, repostedBy: PublicUser | null = null): Post {
   return {
     id, body: "x", createdAt: "", user: BOB, likesCount: 0, repliesCount: 0, likedByMe: false,
-    repostsCount: 0, repostedByMe: false, repostedBy, image: null,
+    repostsCount: 0, repostedByMe: false, repostedBy, image: null, editedAt: null,
   };
 }
 

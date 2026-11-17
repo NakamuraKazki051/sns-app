@@ -25,6 +25,7 @@ function post(overrides: Partial<Post> = {}): Post {
     repostedByMe: false,
     repostedBy: null,
     image: null,
+    editedAt: null,
     ...overrides,
   };
 }

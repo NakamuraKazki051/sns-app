@@ -31,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OpenApiDocTest extends ApiTestSupport {
 
     private static final Path DOC_FILE = Path.of("../docs/openapi.yaml");
+    private static final Path TYPES_FILE = Path.of("../frontend/src/api-schema.ts");
 
     @Test
     void docsFileMatchesTheCode() throws Exception {
@@ -42,6 +43,17 @@ class OpenApiDocTest extends ApiTestSupport {
         // Windows は Git から取り出すと改行が CRLF になる
         assertEquals(Files.readString(DOC_FILE).replace("\r\n", "\n"), generated.replace("\r\n", "\n"),
                 "docs/openapi.yaml が古いです。backend で mvn test -Dtest=OpenApiDocTest -Dopenapi.update=true を実行してください");
+    }
+
+    /** 画面の型(frontend/src/api-schema.ts)も、仕様書から作ったものと合っているか(F-29) */
+    @Test
+    void frontendTypesMatchTheCode() throws Exception {
+        String generated = TypeScriptTypes.generate(body(perform(get("/v3/api-docs"))));
+        if (Boolean.getBoolean("openapi.update")) {
+            Files.writeString(TYPES_FILE, generated);
+        }
+        assertEquals(Files.readString(TYPES_FILE).replace("\r\n", "\n"), generated,
+                "frontend/src/api-schema.ts が古いです。backend で mvn test -Dtest=OpenApiDocTest -Dopenapi.update=true を実行してください");
     }
 
     @Test

@@ -47,26 +47,26 @@ public class ReportController {
     private static final Duration REPORT_WINDOW = Duration.ofHours(1);
     static final int ADMIN_LIST_MAX = 100;
 
-    public record CreateRequest(
+    public record ReportRequest(
             @Schema(description = "通報するユーザー名。投稿の通報なら省いてよい") String username,
             @Schema(description = "通報する投稿の ID(文字列)。ユーザーの通報なら省く") String postId,
             @Schema(description = "理由") Report.Reason reason,
             @Schema(description = "詳しい説明(任意、500字まで)") String detail) {
     }
 
-    public record PostSummary(@Schema(types = {"string", "null"}, description = "投稿 ID。投稿が消されていれば null") String id,
+    public record ReportedPost(@Schema(types = {"string", "null"}, description = "投稿 ID。投稿が消されていれば null") String id,
                               @Schema(description = "通報した時点の本文") String body) {
     }
 
     public record ReportResponse(@Schema(description = "通報 ID(文字列)") String id, Report.Reason reason,
                                  @Schema(types = {"string", "null"}) String detail, Instant createdAt,
                                  PublicUser reporter, PublicUser target,
-                                 @Schema(types = {"object", "null"}, description = "投稿の通報なら入る") PostSummary post,
+                                 @Schema(types = {"object", "null"}, description = "投稿の通報なら入る") ReportedPost post,
                                  @Schema(types = {"string", "null"}, format = "date-time") Instant resolvedAt,
                                  @Schema(types = {"string", "null"}) Report.Resolution resolution) {
         static ReportResponse from(Report report) {
-            PostSummary post = report.getPostBody() == null && report.getPost() == null ? null
-                    : new PostSummary(report.getPost() == null ? null : report.getPost().getId().toString(),
+            ReportedPost post = report.getPostBody() == null && report.getPost() == null ? null
+                    : new ReportedPost(report.getPost() == null ? null : report.getPost().getId().toString(),
                     report.getPostBody());
             return new ReportResponse(report.getId().toString(), report.getReason(), report.getDetail(),
                     report.getCreatedAt(), PublicUser.from(report.getReporter()), PublicUser.from(report.getTargetUser()),
@@ -104,7 +104,7 @@ public class ReportController {
     @PostMapping("/reports")
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
-    public void create(@RequestBody CreateRequest request, HttpServletRequest httpRequest) {
+    public void create(@RequestBody ReportRequest request, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         if (request.reason() == null) {
             throw ApiException.badRequest("通報の理由を選んでください");

@@ -1715,7 +1715,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateRequest"
+              $ref: "#/components/schemas/ReportRequest"
         required: true
       responses:
         "201":
@@ -2468,6 +2468,9 @@ components:
         openReports:
           type: integer
           format: int64
+      required:
+      - admin
+      - openReports
     ApiError:
       properties:
         code:
@@ -2483,11 +2486,17 @@ components:
         timestamp:
           type: string
           format: date-time
+      required:
+      - message
+      - status
+      - timestamp
     BlockResponse:
       type: object
       properties:
         blocking:
           type: boolean
+      required:
+      - blocking
     CodeRequest:
       type: object
       properties:
@@ -2507,6 +2516,10 @@ components:
         unreadCount:
           type: integer
           format: int64
+      required:
+      - lastMessage
+      - partner
+      - unreadCount
     CreateRequest:
       type: object
       properties:
@@ -2553,6 +2566,10 @@ components:
         requested:
           type: boolean
           description: 鍵アカウントへのリクエストを送って承認を待っているか(F-26)
+      required:
+      - followersCount
+      - following
+      - requested
     ForgotPasswordRequest:
       type: object
       properties:
@@ -2586,6 +2603,10 @@ components:
         width:
           type: integer
           format: int32
+      required:
+      - height
+      - url
+      - width
     LikeResponse:
       type: object
       properties:
@@ -2594,6 +2615,9 @@ components:
         likesCount:
           type: integer
           format: int64
+      required:
+      - liked
+      - likesCount
     LoginRequest:
       type: object
       properties:
@@ -2627,6 +2651,10 @@ components:
           - string
           - "null"
           description: 古いものを読むときに before に渡す値
+      required:
+      - hasMore
+      - messages
+      - nextCursor
     MessageResponse:
       type: object
       properties:
@@ -2650,11 +2678,20 @@ components:
         read:
           type: boolean
           description: 受け取った人が読んだか
+      required:
+      - body
+      - createdAt
+      - id
+      - image
+      - mine
+      - read
     MuteResponse:
       type: object
       properties:
         muting:
           type: boolean
+      required:
+      - muting
     NewPostsResponse:
       type: object
       properties:
@@ -2667,6 +2704,9 @@ components:
           description: 新着の投稿者。重複なしで3人まで
           items:
             $ref: "#/components/schemas/PublicUser"
+      required:
+      - count
+      - users
     NotificationPage:
       type: object
       properties:
@@ -2681,6 +2721,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NotificationResponse"
+      required:
+      - hasMore
+      - nextCursor
+      - notifications
     NotificationResponse:
       type: object
       properties:
@@ -2696,16 +2740,25 @@ components:
           anyOf:
           - $ref: "#/components/schemas/PostSummary"
           - type: "null"
-          description: どの投稿への反応か。フォローでは null
+          description: どの投稿への反応か。フォローとフォローのリクエストでは null
         read:
           type: boolean
         type:
           type: string
+          description: 種類。FOLLOW_REQUEST は鍵アカウントへのフォローのリクエスト
           enum:
           - LIKE
           - REPLY
           - REPOST
           - FOLLOW
+          - FOLLOW_REQUEST
+      required:
+      - actor
+      - createdAt
+      - id
+      - post
+      - read
+      - type
     PageResponse:
       type: object
       properties:
@@ -2720,6 +2773,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PostResponse"
+      required:
+      - hasMore
+      - nextCursor
+      - posts
     PostResponse:
       type: object
       properties:
@@ -2762,6 +2819,19 @@ components:
           format: int64
         user:
           $ref: "#/components/schemas/PublicUser"
+      required:
+      - body
+      - createdAt
+      - editedAt
+      - id
+      - image
+      - likedByMe
+      - likesCount
+      - repliesCount
+      - repostedBy
+      - repostedByMe
+      - repostsCount
+      - user
     PostSummary:
       type: object
       properties:
@@ -2770,6 +2840,9 @@ components:
         id:
           type: string
           description: 投稿 ID(文字列)
+      required:
+      - body
+      - id
     ProfileResponse:
       type: object
       properties:
@@ -2819,6 +2892,22 @@ components:
           description: 鍵アカウントか(F-26)
         username:
           type: string
+      required:
+      - bio
+      - blocking
+      - canViewPosts
+      - createdAt
+      - displayName
+      - followRequested
+      - followedByMe
+      - followersCount
+      - followingCount
+      - iconUpdatedAt
+      - id
+      - muting
+      - postsCount
+      - privateAccount
+      - username
     ProfileUpdateRequest:
       type: object
       properties:
@@ -2847,6 +2936,11 @@ components:
           type: string
         username:
           type: string
+      required:
+      - displayName
+      - iconUpdatedAt
+      - id
+      - username
     RecommendedUser:
       type: object
       properties:
@@ -2876,6 +2970,14 @@ components:
           - NEW
         username:
           type: string
+      required:
+      - bio
+      - displayName
+      - iconUpdatedAt
+      - id
+      - mutualCount
+      - reason
+      - username
     RecoveryCodes:
       type: object
       properties:
@@ -2884,6 +2986,8 @@ components:
           description: リカバリーコード。今だけ見られる(サーバーにはハッシュしか残らない)
           items:
             type: string
+      required:
+      - recoveryCodes
     RegisterRequest:
       type: object
       properties:
@@ -2918,6 +3022,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ReplyResponse"
+      required:
+      - hasMore
+      - replies
     ReplyResponse:
       type: object
       properties:
@@ -2932,6 +3039,33 @@ components:
           type: string
         user:
           $ref: "#/components/schemas/PublicUser"
+      required:
+      - body
+      - createdAt
+      - id
+      - postId
+      - user
+    ReportRequest:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: 詳しい説明(任意、500字まで)
+        postId:
+          type: string
+          description: 通報する投稿の ID(文字列)。ユーザーの通報なら省く
+        reason:
+          type: string
+          description: 理由
+          enum:
+          - SPAM
+          - HARASSMENT
+          - INAPPROPRIATE
+          - IMPERSONATION
+          - OTHER
+        username:
+          type: string
+          description: 通報するユーザー名。投稿の通報なら省いてよい
     ReportResponse:
       type: object
       properties:
@@ -2947,7 +3081,7 @@ components:
           description: 通報 ID(文字列)
         post:
           anyOf:
-          - $ref: "#/components/schemas/PostSummary"
+          - $ref: "#/components/schemas/ReportedPost"
           - type: "null"
           description: 投稿の通報なら入る
         reason:
@@ -2974,6 +3108,30 @@ components:
           format: date-time
         target:
           $ref: "#/components/schemas/PublicUser"
+      required:
+      - createdAt
+      - detail
+      - id
+      - post
+      - reason
+      - reporter
+      - resolution
+      - resolvedAt
+      - target
+    ReportedPost:
+      type: object
+      properties:
+        body:
+          type: string
+          description: 通報した時点の本文
+        id:
+          type:
+          - string
+          - "null"
+          description: 投稿 ID。投稿が消されていれば null
+      required:
+      - body
+      - id
     RepostResponse:
       type: object
       properties:
@@ -2982,12 +3140,17 @@ components:
         repostsCount:
           type: integer
           format: int64
+      required:
+      - reposted
+      - repostsCount
     RequestCount:
       type: object
       properties:
         count:
           type: integer
           format: int64
+      required:
+      - count
     ResendVerificationRequest:
       type: object
       properties:
@@ -3041,6 +3204,12 @@ components:
         lastUsedAt:
           type: string
           format: date-time
+      required:
+      - createdAt
+      - current
+      - device
+      - id
+      - lastUsedAt
     Setup:
       type: object
       properties:
@@ -3050,6 +3219,9 @@ components:
         uri:
           type: string
           description: 認証アプリに読ませる otpauth:// の URI。画面が QR コードにする
+      required:
+      - secret
+      - uri
     Status:
       type: object
       properties:
@@ -3060,6 +3232,9 @@ components:
           type: integer
           format: int64
           description: まだ使っていないリカバリーコードの数(無効なら0)
+      required:
+      - enabled
+      - recoveryCodesLeft
     Trend:
       type: object
       properties:
@@ -3068,12 +3243,17 @@ components:
           format: int64
         tag:
           type: string
+      required:
+      - postsCount
+      - tag
     UnreadCount:
       type: object
       properties:
         count:
           type: integer
           format: int64
+      required:
+      - count
     UpdateRequest:
       type: object
       properties:
@@ -3105,6 +3285,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/UserSummary"
+      required:
+      - nextCursor
+      - users
     UserResponse:
       type: object
       properties:
@@ -3133,6 +3316,15 @@ components:
           description: 鍵アカウントか(F-26)
         username:
           type: string
+      required:
+      - bio
+      - createdAt
+      - displayName
+      - email
+      - iconUpdatedAt
+      - id
+      - privateAccount
+      - username
     UserSummary:
       type: object
       properties:
@@ -3153,6 +3345,12 @@ components:
           type: string
         username:
           type: string
+      required:
+      - bio
+      - displayName
+      - iconUpdatedAt
+      - id
+      - username
     VerifyEmailRequest:
       type: object
       properties:

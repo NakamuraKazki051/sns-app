@@ -20,7 +20,7 @@ export const CONVERSATION_POLL_MS = 5_000;
 /** Layout が渡す。会話を開いて既読にしたら、メニューの未読の数を聞き直す */
 export type MessagesOutlet = { onMessagesRead: () => void };
 
-type MessagePage = { messages: DirectMessage[]; hasMore: boolean; nextCursor: string | null };
+type MessagePage = import("../api-schema").MessagePage;
 
 /** 古い順に並べた a に、b を足す(同じ ID は b の方で置き換える。既読が付いたときのため) */
 export function mergeMessages(a: DirectMessage[], b: DirectMessage[]): DirectMessage[] {

@@ -132,6 +132,41 @@ public class OpenApiConfig {
         });
     }
 
+    /**
+     * 応答の形の項目を、すべて「必ずある」にする。Java の record は null の項目も省かずに返すので、実際にそうなっている。
+     * 画面の型(frontend/src/api-schema.ts)はこの仕様書から作るので、こうしないと全部「無いかもしれない」になってしまう。
+     * 送る形(requestBody で使うもの)は、省ける項目があるのでそのまま。
+     * 値が無いときに省く項目(@JsonInclude(NON_NULL))は OPTIONAL_PROPERTIES に書く
+     */
+    /** 応答の形のうち、値が無いときは省く項目(@JsonInclude(NON_NULL) を付けたもの) */
+    private static final Map<String, Set<String>> OPTIONAL_PROPERTIES = Map.of("ApiError", Set.of("code"));
+
+    @Bean
+    OpenApiCustomizer markResponsePropertiesRequired() {
+        return openApi -> {
+            Set<String> requestSchemas = new java.util.HashSet<>();
+            if (openApi.getPaths() != null) {
+                openApi.getPaths().values().forEach(path -> path.readOperations().forEach(operation -> {
+                    if (operation.getRequestBody() != null && operation.getRequestBody().getContent() != null) {
+                        operation.getRequestBody().getContent().values().forEach(media -> {
+                            if (media.getSchema() != null && media.getSchema().get$ref() != null) {
+                                String ref = media.getSchema().get$ref();
+                                requestSchemas.add(ref.substring(ref.lastIndexOf("/") + 1));
+                            }
+                        });
+                    }
+                }));
+            }
+            openApi.getComponents().getSchemas().forEach((name, model) -> {
+                if (!requestSchemas.contains(name) && model.getProperties() != null && !model.getProperties().isEmpty()) {
+                    java.util.TreeSet<String> required = new java.util.TreeSet<>(model.getProperties().keySet());
+                    required.removeAll(OPTIONAL_PROPERTIES.getOrDefault(name, Set.of()));
+                    model.setRequired(new java.util.ArrayList<>(required));
+                }
+            });
+        };
+    }
+
     private static boolean isNullableReference(Schema<?> property) {
         return property.get$ref() != null && property.getTypes() != null && property.getTypes().contains("null");
     }

@@ -1,25 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api, ApiError, errorMessage } from "../api";
+import type { ReportResponse } from "../api-schema";
 import { REPORT_REASONS, type ReportReason } from "../components/ReportDialog";
 import { useFeedback } from "../feedback";
 import { fullTime } from "../text";
-import type { PublicUser } from "../types";
 import { NotFoundPage } from "./NotFoundPage";
 
-type Resolution = "DISMISSED" | "POST_DELETED";
+type Resolution = NonNullable<ReportResponse["resolution"]>;
 
-export type AdminReport = {
-  id: string;
-  reason: ReportReason;
-  detail: string | null;
-  createdAt: string;
-  reporter: PublicUser;
-  target: PublicUser;
-  post: { id: string | null; body: string } | null;
-  resolvedAt: string | null;
-  resolution: Resolution | null;
-};
+export type AdminReport = ReportResponse;
 
 const reasonLabel = (reason: ReportReason) => REPORT_REASONS.find((r) => r.value === reason)?.label ?? reason;
 const RESOLUTION_LABEL: Record<Resolution, string> = { DISMISSED: "問題なし", POST_DELETED: "投稿を削除" };
