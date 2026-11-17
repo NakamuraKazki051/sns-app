@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router";
+import { api } from "../api";
 import { useAuth, useMe } from "../auth";
 import { useUnreadMessages, useUnreadNotifications } from "../notifications";
 import type { MessagesOutlet } from "../pages/MessagesPage";
@@ -22,6 +23,17 @@ export function Layout() {
   const headerRef = useRef<HTMLElement>(null);
   const unread = useUnreadNotifications();
   const unreadMessages = useUnreadMessages();
+  // 管理者なら「通報」をメニューに出す(対応前の数も)。開くたびに1回だけ聞く
+  const [admin, setAdmin] = useState<{ admin: boolean; openReports: number } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api<{ admin: boolean; openReports: number }>("/api/admin/status")
+      .then((s) => !cancelled && setAdmin(s))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const outletContext = useMemo<NotificationsOutlet & MessagesOutlet>(
     () => ({ onNotificationsRead: unread.reset, onMessagesRead: unreadMessages.refresh }),
     [unread.reset, unreadMessages.refresh],
@@ -89,6 +101,12 @@ export function Layout() {
             <NavLink to="/settings" className={navClass}>
               設定
             </NavLink>
+            {admin?.admin && (
+              <NavLink to="/admin/reports" className={navClass}>
+                通報
+                {admin.openReports > 0 && <span className="nav-badge">{admin.openReports > 99 ? "99+" : admin.openReports}</span>}
+              </NavLink>
+            )}
             <button
               type="button"
               className="link-button"

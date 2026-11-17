@@ -52,6 +52,9 @@ app:
   mail:
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
+  # 管理者(通報を見て対応する人)のユーザー名。カンマ区切り。空なら誰もいない(common/Admins.java)
+  admin:
+    usernames: ${ADMIN_USERNAMES:}
   images:
     s3-bucket: ${IMAGES_S3_BUCKET:}
     dir: ${IMAGES_DIR:data/post-images}

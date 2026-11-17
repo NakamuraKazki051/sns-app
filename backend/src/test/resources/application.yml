@@ -30,5 +30,8 @@ app:
     required: false
   register:
     per-hour: 100000
+  # 管理者(通報を見て対応する人)のユーザー名。カンマ区切り。空なら誰もいない(common/Admins.java)
+  admin:
+    usernames: report_admin
   images:
     dir: target/test-post-images

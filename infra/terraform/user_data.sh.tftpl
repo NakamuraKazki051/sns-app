@@ -84,6 +84,8 @@ services:
       APP_ORIGIN_SECRET: $${ORIGIN_SECRET}
       # 1つの IP から1時間に登録できる回数
       REGISTER_PER_HOUR: "5"
+      # 管理者（通報を見て対応する人）のユーザー名。terraform.tfvars の admin_usernames
+      ADMIN_USERNAMES: "${admin_usernames}"
       # 確認メールのリンクの先と、送るのに使う Gmail
       APP_PUBLIC_URL: ${app_origin}
       MAIL_USERNAME: $${MAIL_USERNAME}

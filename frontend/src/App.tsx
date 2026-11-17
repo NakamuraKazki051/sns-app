@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router";
 import { RequireAuth } from "./auth";
 import { Layout } from "./components/Layout";
+import { AdminReportsPage } from "./pages/AdminReportsPage";
 import { FollowListPage } from "./pages/FollowListPage";
 import { HashtagPage } from "./pages/HashtagPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -40,6 +41,7 @@ export function App() {
         <Route path="messages/:username" element={<ConversationPage />} />
         <Route path="hashtag/:tag" element={<HashtagPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="admin/reports" element={<AdminReportsPage />} />
         <Route path="posts/:id" element={<PostPage />} />
         <Route path=":handle" element={<UserPage />} />
         <Route path=":handle/following" element={<FollowListPage key="following" kind="following" />} />

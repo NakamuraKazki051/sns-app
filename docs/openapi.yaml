@@ -30,7 +30,107 @@ tags:
   name: 通知
 - description: 1対1のメッセージ
   name: DM
+- description: 通報と、管理者の対応
+  name: 通報
 paths:
+  /api/admin/reports:
+    get:
+      description: status=open は対応前を古い順に、resolved は対応済みを新しい順に、100件まで。管理者でなければ 404
+      operationId: listReports
+      parameters:
+      - description: open(対応前、既定)か resolved(対応済み)
+        in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          default: open
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReportResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: 通報の一覧(管理者だけ)
+      tags:
+      - 通報
+  /api/admin/reports/{id}/resolve:
+    post:
+      description: DISMISSED は何もせず片付ける。POST_DELETED は通報された投稿を消し、その投稿への対応前の通報もまとめて片付ける。管理者でない・通報が無いときは
+        404。投稿の通報でないのに POST_DELETED なら 400
+      operationId: resolveReport
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRequest"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: 通報に対応する(管理者だけ)
+      tags:
+      - 通報
+  /api/admin/status:
+    get:
+      description: 管理者なら、対応前の通報の数も返す。画面はこれを見て「通報の確認」を出す
+      operationId: getAdminStatus
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStatus"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 管理者かどうか
+      tags:
+      - 通報
   /api/auth/forgot-password:
     post:
       description: 登録の有無が分からないよう、送らなかったときも 204 を返す。リンクは1時間有効。1つのアドレスにつき1時間に3回まで
@@ -1407,6 +1507,47 @@ paths:
       summary: リプライを消す
       tags:
       - リプライ
+  /api/reports:
+    post:
+      description: ユーザー(username)か投稿(postId)を、理由を選んで運営に知らせる。相手には知らせない。同じ相手(投稿)への対応前の通報があれば、新しく作らず
+        201 を返す。自分は通報できない(400)。1人1時間に20件まで(429)
+      operationId: createReport
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRequest"
+        required: true
+      responses:
+        "201":
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 回数が多すぎる。少し待ってからやり直す
+      summary: 通報する
+      tags:
+      - 通報
   /api/timeline:
     get:
       description: みんなの投稿を新しい順に20件。リポストは混ざらない
@@ -2098,6 +2239,14 @@ paths:
       - ユーザー
 components:
   schemas:
+    AdminStatus:
+      type: object
+      properties:
+        admin:
+          type: boolean
+        openReports:
+          type: integer
+          format: int64
     ApiError:
       properties:
         code:
@@ -2512,6 +2661,48 @@ components:
           type: string
         user:
           $ref: "#/components/schemas/PublicUser"
+    ReportResponse:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        detail:
+          type:
+          - string
+          - "null"
+        id:
+          type: string
+          description: 通報 ID(文字列)
+        post:
+          anyOf:
+          - $ref: "#/components/schemas/PostSummary"
+          - type: "null"
+          description: 投稿の通報なら入る
+        reason:
+          type: string
+          enum:
+          - SPAM
+          - HARASSMENT
+          - INAPPROPRIATE
+          - IMPERSONATION
+          - OTHER
+        reporter:
+          $ref: "#/components/schemas/PublicUser"
+        resolution:
+          type:
+          - string
+          - "null"
+          enum:
+          - DISMISSED
+          - POST_DELETED
+        resolvedAt:
+          type:
+          - string
+          - "null"
+          format: date-time
+        target:
+          $ref: "#/components/schemas/PublicUser"
     RepostResponse:
       type: object
       properties:
@@ -2543,6 +2734,15 @@ components:
       required:
       - newPassword
       - token
+    ResolveRequest:
+      type: object
+      properties:
+        resolution:
+          type: string
+          description: DISMISSED(問題なし)か POST_DELETED(投稿を消す)
+          enum:
+          - DISMISSED
+          - POST_DELETED
     SendRequest:
       type: object
       properties:

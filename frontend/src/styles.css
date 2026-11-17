@@ -446,3 +446,15 @@ small.over { color: var(--danger); font-weight: 700; }
 .session-list li:last-child { border-bottom: none; }
 .session-list .small { font-size: 0.85em; margin-top: 2px; }
 .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 0.75em; background: var(--accent); color: #fff; vertical-align: middle; }
+
+/* 通報 */
+.report-dialog { max-width: 400px; display: flex; flex-direction: column; gap: 8px; }
+.report-dialog fieldset { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.report-dialog legend { font-weight: bold; margin-bottom: 4px; }
+.report-dialog .radio { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.report-dialog textarea { width: 100%; box-sizing: border-box; margin-top: 4px; }
+.post-actions .action.report { margin-left: auto; font-size: 0.85em; }
+.admin-report { border-bottom: 1px solid var(--border); padding: 12px 0; }
+.admin-report:last-child { border-bottom: none; }
+.admin-report blockquote { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--border); white-space: pre-wrap; }
+.admin-report .modal-actions { margin-top: 8px; justify-content: flex-start; }
