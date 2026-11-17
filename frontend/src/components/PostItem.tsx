@@ -10,6 +10,7 @@ import { Avatar } from "./Avatar";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { AuthImage } from "./AuthImage";
 import { ImageViewer } from "./ImageViewer";
+import { ReportDialog } from "./ReportDialog";
 
 type Props = {
   post: Post;
@@ -30,10 +31,12 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true, isNew
   const [reposting, setReposting] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [viewing, setViewing] = useState(false);
+  const [reporting, setReporting] = useState(false);
   // 本文を直している途中の文(F-19)。null なら直していない
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const closeViewer = useCallback(() => setViewing(false), []);
+  const closeReport = useCallback(() => setReporting(false), []);
   const detailPath = `/posts/${post.id}`;
   const mine = post.user.id === me.id;
 
@@ -223,11 +226,21 @@ export function PostItem({ post, onChange, onDeleted, linkToDetail = true, isNew
               削除
             </button>
           )}
+          {!mine && (
+            <button type="button" className="action report" onClick={() => setReporting(true)}>
+              通報
+            </button>
+          )}
         </div>
       </div>
       {viewing && post.image && (
         <div onClick={(e) => e.stopPropagation()}>
           <ImageViewer src={post.image.url} alt={post.body || `${post.user.displayName}さんの画像`} onClose={closeViewer} />
+        </div>
+      )}
+      {reporting && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ReportDialog target={{ postId: post.id }} onClose={closeReport} />
         </div>
       )}
       {confirming && (

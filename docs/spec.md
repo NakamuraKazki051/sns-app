@@ -30,6 +30,7 @@
 | F-22 | ハッシュタグ・トレンド | 済（2026-11-09 追加） |
 | F-23 | DM | 済（2026-11-10 追加） |
 | F-24 | 2段階認証 | 済（2026-11-10 追加） |
+| F-25 | 通報 | 済（2026-11-17 追加） |
 
 ## 2. 共通の決まり
 
@@ -293,6 +294,20 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 - 画面：設定画面に「2段階認証」。QR コードは画面で作る（`qrcode` パッケージ）。読めないときのため鍵も4文字ずつ区切って出す。ログイン画面は、コードが要ると分かったら「認証コード」の入力に切り替える
 - パスワードを再設定しても2段階認証はそのまま（メールを乗っ取られても入られないように）。スマホをなくしたらリカバリーコードを使う
 
+### 4.11 通報（F-25）
+
+| メソッド | パス | 返すもの |
+| --- | --- | --- |
+| POST | `/api/reports` | 201。`{ username }` か `{ postId }` と `reason`（`SPAM`・`HARASSMENT`・`INAPPROPRIATE`・`IMPERSONATION`・`OTHER`）、`detail`（任意、500字まで）。自分は 400、相手がいない・見えない投稿は 404、1人1時間に20件まで（429）。同じ相手（投稿）への対応前の通報があれば新しく作らない |
+| GET | `/api/admin/status` | `{ admin, openReports }`。管理者なら対応前の通報の数も |
+| GET | `/api/admin/reports?status=open\|resolved` | 通報の一覧（100件まで）。対応前は古い順、対応済みは対応した新しい順。1件は `{ id, reason, detail, createdAt, reporter, target, post: { id, body } \| null, resolvedAt, resolution }`。管理者でなければ 404 |
+| POST | `/api/admin/reports/{id}/resolve` | 204。`{ resolution }` が `DISMISSED`（問題なし）か `POST_DELETED`（投稿を消し、同じ投稿への通報もまとめて片付ける）。投稿の通報でないのに `POST_DELETED` なら 400 |
+
+- 相手には知らせない。通報した人・された人は管理者の一覧にだけ出る
+- 管理者は設定 `app.admin.usernames`（環境変数 `ADMIN_USERNAMES`、カンマ区切りのユーザー名。AWS は `terraform.tfvars` の `admin_usernames`）で決める。画面から管理者を増やす仕組みは作らない（乗っ取られたアカウントが管理者を増やせないように）。管理者でない人には、管理者の API は 404（あることも知らせない）
+- 投稿の本文は通報した時点の写しを残す（直されたり消されたりしても、何を通報したか分かる）。投稿が消えると `post.id` は `null` になる
+- 画面：投稿の下段の「通報」（自分の投稿には出ない）とユーザーページの「通報」で、理由を選んで送る。管理者はメニューに「通報」と対応前の数が出て、`/admin/reports` で「問題なし」「投稿を削除」を選ぶ
+
 ## 5. データ
 
 | テーブル | 主な列 | 制約・インデックス |
@@ -308,6 +323,7 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | post_hashtags | id, post_id, tag（小文字、# なし、50字まで）, created_at（投稿した時刻） | (post_id, tag) に一意制約、(tag, post_id)、(created_at)。投稿を消すと一緒に消える（`V10__hashtags.sql`。前からある投稿は Java の `V11__BackfillHashtags` で取り出す） |
 | direct_messages | id（連番）, sender_id, recipient_id, body（500字まで）, created_at, read_at | (sender_id, recipient_id, id)、(recipient_id, sender_id, id)。どちらのユーザーを消しても一緒に消える（`V12__direct_messages.sql`） |
 | recovery_codes | id, user_id, code_hash（SHA-256）, used_at | (user_id)。2段階認証のリカバリーコード。アカウントを消すと一緒に消える（`V13__two_factor.sql`） |
+| reports | id（連番）, reporter_id, target_user_id, post_id, post_body, reason, detail, created_at, resolved_at, resolution | (resolved_at, id)、(reporter_id, target_user_id)。人を消すと一緒に消える。投稿を消すと post_id だけ空になる（`V16__reports.sql`） |
 | user_icons | user_id（主キー）, content_type, data（MEDIUMBLOB）, updated_at | 1人1枚 |
 | posts | id（連番）, user_id, body, created_at, image_*, edited_at | (user_id, id)。edited_at は本文を最後に直した時刻（`V7__post_edits.sql`） |
 | replies | id（連番）, post_id, user_id, body, created_at | (post_id, id)。投稿を消すと DB が一緒に消す（ON DELETE CASCADE） |
@@ -347,8 +363,8 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 
 | 種類 | 件数・内容 | 実行 |
 | --- | --- | --- |
-| API のテスト | 209件（H2）。生存確認のログも。リクエストのログの項目、クエリ文字列を出さないこと、メールの失敗にアドレスを残さないことも。メール認証、新規登録の回数制限、IP の偽装で制限を抜けられないこと、秘密のヘッダーが無いリクエストを断ること、入力エラーより先に 401 を返すことも。API 仕様書（`docs/openapi.yaml`）がコードと合っていること、ログインが要ると書いた API が未ログインで 401 になること、AWS の設定で仕様書を開けないことも。画像付きの投稿（形式・5MB・縦横の上限・画像だけの投稿・削除で画像も消える・ログインが必要）、新着の数（自分の投稿は数えない、ホームはフォロー中の人だけ、100で止まる）も。各 API の正常系とエラー、140字・160字の境界（絵文字）、ページ送りで重複・欠落なし（投稿とリポストが混ざっても）、他人の投稿・リプライを消せない、いいねを同時に8回押しても1件、自分の投稿はリポストできない、投稿削除でリプライ・いいね・リポストも消える、検索の `%` `_` | `cd backend && mvn test` |
-| 画面のテスト | 41件（Vitest + Testing Library）。画像の添付・外す・使えない画像の理由・画像の表示と拡大、新着の目印の比べ方も。ログインの流れ（7件）、投稿欄の文字数（3件）、リポストのボタンと「○○さんがリポスト」（5件）、文字数・日時・戻り先の関数 | `cd frontend && npm test` |
+| API のテスト | 215件（H2）。生存確認のログも。リクエストのログの項目、クエリ文字列を出さないこと、メールの失敗にアドレスを残さないことも。メール認証、新規登録の回数制限、IP の偽装で制限を抜けられないこと、秘密のヘッダーが無いリクエストを断ること、入力エラーより先に 401 を返すことも。API 仕様書（`docs/openapi.yaml`）がコードと合っていること、ログインが要ると書いた API が未ログインで 401 になること、AWS の設定で仕様書を開けないことも。画像付きの投稿（形式・5MB・縦横の上限・画像だけの投稿・削除で画像も消える・ログインが必要）、新着の数（自分の投稿は数えない、ホームはフォロー中の人だけ、100で止まる）も。各 API の正常系とエラー、140字・160字の境界（絵文字）、ページ送りで重複・欠落なし（投稿とリポストが混ざっても）、他人の投稿・リプライを消せない、いいねを同時に8回押しても1件、自分の投稿はリポストできない、投稿削除でリプライ・いいね・リポストも消える、検索の `%` `_` | `cd backend && mvn test` |
+| 画面のテスト | 88件（Vitest + Testing Library）。画像の添付・外す・使えない画像の理由・画像の表示と拡大、新着の目印の比べ方も。ログインの流れ（7件）、投稿欄の文字数（3件）、リポストのボタンと「○○さんがリポスト」（5件）、文字数・日時・戻り先の関数 | `cd frontend && npm test` |
 | 結合テスト | 8シナリオ（Playwright）。本物の jar、MySQL、Chrome をつなぐ。登録からログイン、確認前の登録が見えないこと、プロフィールの変更、メールアドレスとパスワードの変更、ログアウト、2人のやりとり（投稿、検索、フォロー、いいね、リポスト、リプライ、削除）、新着のお知らせ、画像付きの投稿。確認メールはアプリのログのリンクを読む | `./e2e/run.ps1`。PR ごとに GitHub Actions でも動く |
 | MySQL での通し確認 | 36項目（2026-10-30 実施、すべて OK）。画面の URL の配信、リプライ、いいねを10回同時に押して1件、フォロー、ホーム、検索、自己紹介、アイコン、削除の連鎖、ログアウト後の 401。MySQL に外部キーの CASCADE・一意制約・インデックスがあることも確認 | 起動中のアプリに API を順に呼ぶスクリプト |
 

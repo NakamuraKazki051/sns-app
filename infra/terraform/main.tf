@@ -110,6 +110,7 @@ resource "aws_instance" "app" {
     app_origin            = "https://${aws_cloudfront_distribution.app.domain_name}"
     origin_secret         = random_password.origin_secret.result
     jwt_secret            = random_password.jwt_secret.result
+    admin_usernames       = var.admin_usernames
   })
 
   # CPUを使いすぎたときに追加料金が出る「unlimited」モードにしない

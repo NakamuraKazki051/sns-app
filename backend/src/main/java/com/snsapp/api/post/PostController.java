@@ -393,6 +393,14 @@ public class PostController {
                 .orElseThrow(() -> ApiException.unauthorized("ログインしていません"));
     }
 
+    /** 管理者が通報を受けて投稿を消す(ReportController)。リプライ・いいね・リポスト・画像も一緒に消える */
+    public void deleteAsModerator(Long id) {
+        PostImage image = postRepository.findById(id).map(Post::getImage).orElse(null);
+        if (postRepository.deleteAnyById(id) > 0 && image != null) {
+            deleteImageQuietly(image.key());
+        }
+    }
+
     // 画像が消せなくても投稿の操作は失敗にしない(置き場所にゴミが残るだけ)。ログには残す
     private void deleteImageQuietly(String key) {
         try {

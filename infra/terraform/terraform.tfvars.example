@@ -2,3 +2,6 @@
 
 # ARM（Graviton）の無料枠インスタンスを使う場合
 # instance_type = "t4g.micro"
+
+# 管理者（通報を見て対応する人）のユーザー名。カンマ区切り
+# admin_usernames = "your_username"

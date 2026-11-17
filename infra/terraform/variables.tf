@@ -44,3 +44,9 @@ variable "db_password_version" {
   type        = number
   default     = 1
 }
+
+variable "admin_usernames" {
+  description = "管理者（通報を見て対応する人）のユーザー名。カンマ区切り。空なら誰もいない（terraform.tfvars で指定する）"
+  type        = string
+  default     = ""
+}

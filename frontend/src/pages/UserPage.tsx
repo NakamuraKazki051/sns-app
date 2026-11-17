@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api, ApiError, errorMessage } from "../api";
 import { useMe } from "../auth";
@@ -6,6 +6,7 @@ import { Avatar } from "../components/Avatar";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { LoadFailed } from "../components/LoadFailed";
 import { PostList } from "../components/PostList";
+import { ReportDialog } from "../components/ReportDialog";
 import { useFeedback } from "../feedback";
 import { loadPosts, postKey } from "../loaders";
 import type { Post, Profile } from "../types";
@@ -37,6 +38,8 @@ function UserPageContent({ username }: { username: string }) {
   // ブロック・ミュート(F-20)。ブロックを変えたら、投稿の一覧も読み直す
   const [relating, setRelating] = useState(false);
   const [confirmingBlock, setConfirmingBlock] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const closeReport = useCallback(() => setReporting(false), []);
   const [version, setVersion] = useState(0);
   const postsPath = `/api/users/${username}/posts`;
   const posts = usePaged<Post>(`${postsPath}#${version}`, loadPosts(postsPath), postKey);
@@ -148,9 +151,13 @@ function UserPageContent({ username }: { username: string }) {
               >
                 {profile.blocking ? "ブロック中" : "ブロック"}
               </button>
+              <button type="button" className="button" onClick={() => setReporting(true)}>
+                通報
+              </button>
             </div>
           )}
         </div>
+        {reporting && <ReportDialog target={{ username: profile.username }} onClose={closeReport} />}
         {confirmingBlock && (
           <ConfirmDialog
             title={`@${profile.username} さんをブロックしますか？`}
