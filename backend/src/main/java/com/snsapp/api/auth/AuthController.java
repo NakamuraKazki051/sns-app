@@ -165,7 +165,8 @@ public class AuthController {
     @PublicApi
     @ApiErrors({400, 401, 403, 429})
     @PostMapping("/login")
-    public UserResponse login(@Valid @RequestBody LoginRequest request, HttpServletResponse httpResponse) {
+    public UserResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest,
+                              HttpServletResponse httpResponse) {
         String email = request.email().trim().toLowerCase();
         if (!rateLimiter.tryAcquire("login:" + email, LOGIN_ATTEMPTS, LOGIN_WINDOW)) {
             throw ApiException.tooManyRequests("ログインの試行回数が多すぎます。5分ほど待ってからもう一度お試しください");
@@ -191,7 +192,7 @@ public class AuthController {
             userRepository.save(user);
         }
         // ログインのたびに新しい JWT を作るので、ログイン前の値を使い回されることはない(セッション固定攻撃にならない)
-        currentUser.signIn(httpResponse, user);
+        currentUser.signIn(httpRequest, httpResponse, user);
         return UserResponse.from(user);
     }
 

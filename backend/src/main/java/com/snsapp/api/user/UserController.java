@@ -303,7 +303,7 @@ public class UserController {
         }
         if (passwordChanged) {
             // 世代が進んで今の JWT も使えなくなったので、変更した本人にだけ新しい世代の JWT を渡す
-            currentUser.signIn(httpResponse, saved);
+            currentUser.signIn(httpRequest, httpResponse, saved);
         }
         return UserResponse.from(saved);
     }

@@ -600,6 +600,72 @@ paths:
       summary: 表示名と自己紹介を変える
       tags:
       - 自分の設定
+  /api/me/sessions:
+    delete:
+      description: この端末だけログインしたままにする
+      operationId: revokeOtherSessions
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: ほかの端末をすべてログアウトさせる
+      tags:
+      - 自分の設定
+    get:
+      description: 今もログインしている端末を、最後に使った新しい順に返す。パスワードを変える前のログインと、7日使っていないものは出さない
+      operationId: listSessions
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SessionResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: ログイン中の端末
+      tags:
+      - 自分の設定
+  /api/me/sessions/{id}:
+    delete:
+      description: その端末のアクセストークンもリフレッシュトークンもすぐ使えなくなる。この端末を選んだら、ふつうのログアウトと同じ(Cookie
+        も消す)
+      operationId: revokeSession
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: 選んだ端末をログアウトさせる
+      tags:
+      - 自分の設定
   /api/me/two-factor:
     delete:
       description: パスワードと、認証アプリのコード(かまだ使っていないリカバリーコード)が要る。リカバリーコードも消す。1人5分に10回まで
@@ -2483,6 +2549,21 @@ components:
         body:
           type: string
           description: 本文。500字まで(絵文字も1字と数える)
+    SessionResponse:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+        device:
+          type: string
+        id:
+          type: string
+        lastUsedAt:
+          type: string
+          format: date-time
     Setup:
       type: object
       properties:
