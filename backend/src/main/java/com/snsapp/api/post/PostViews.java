@@ -88,8 +88,8 @@ public class PostViews {
 
     /** この人たちの投稿とリポストを混ぜた1ページ(ホームタイムライン・ユーザーページ)。before は前のページの nextCursor */
     public PageResponse feedOf(Collection<String> userIds, String before, String viewerId) {
-        // ブロック・ミュートしている人の投稿をリポストしていても出さない(F-20)
-        Set<String> hidden = visibility.hidden(viewerId);
+        // ブロック・ミュートしている人と、フォローしていない鍵アカウントの投稿をリポストしていても出さない(F-20、F-26)
+        Set<String> hidden = visibility.postHidden(viewerId);
         FeedCursor cursor = FeedCursor.parse(before);
         Limit limit = Limit.of(PAGE_SIZE + 1);
         List<Post> posts = cursor.postBefore() == null

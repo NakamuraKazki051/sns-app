@@ -60,6 +60,10 @@ public class User {
     @Column(nullable = false)
     private long totpLastStep;
 
+    // 鍵アカウント(F-26)。true なら投稿は本人と承認したフォロワーにだけ見え、フォローには承認が要る
+    @Column(name = "is_private", nullable = false)
+    private boolean privateAccount;
+
     protected User() {
     }
 
@@ -189,5 +193,13 @@ public class User {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public boolean isPrivateAccount() {
+        return privateAccount;
+    }
+
+    public void setPrivateAccount(boolean privateAccount) {
+        this.privateAccount = privateAccount;
     }
 }

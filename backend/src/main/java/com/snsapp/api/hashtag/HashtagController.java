@@ -65,7 +65,7 @@ public class HashtagController {
         if (normalized.isEmpty() || normalized.length() > Hashtags.TAG_MAX) {
             throw ApiException.badRequest("ハッシュタグは1〜" + Hashtags.TAG_MAX + "文字にしてください");
         }
-        Set<String> hidden = visibility.hidden(userId);
+        Set<String> hidden = visibility.postHidden(userId);
         Limit limit = Limit.of(PostViews.PAGE_SIZE + 1);
         return postViews.page(before == null
                 ? postRepository.findByHashtag(normalized, hidden, limit)

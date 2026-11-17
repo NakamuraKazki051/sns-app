@@ -31,6 +31,11 @@ public class NotificationService {
         notify(followeeId, actorId, Notification.Type.FOLLOW, null);
     }
 
+    /** 鍵アカウント(F-26)にフォローのリクエストが届いた */
+    public void followRequested(String actorId, String targetId) {
+        notify(targetId, actorId, Notification.Type.FOLLOW_REQUEST, null);
+    }
+
     /** いいね・リポスト・フォローを取り消したら、その通知も消す(付けたり外したりで通知が溜まらないように) */
     public void retract(Notification.Type type, String actorId, String recipientId, Long postId) {
         notifications.deleteMatching(recipientId, actorId, type, postId);

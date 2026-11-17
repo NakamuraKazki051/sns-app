@@ -47,17 +47,19 @@ public class UserDtos {
     public record ProfileUpdateRequest(
             @Size(max = User.DISPLAY_NAME_MAX, message = "表示名は50文字以内で入力してください")
             String displayName,
-            @Schema(description = "自己紹介。160字まで(絵文字も1字と数える)。空にすると消える") String bio
+            @Schema(description = "自己紹介。160字まで(絵文字も1字と数える)。空にすると消える") String bio,
+            @Schema(description = "鍵アカウントにするか(F-26)。外すと、届いているフォローのリクエストはすべて承認する") Boolean privateAccount
     ) {
     }
 
     /** ログインしている本人に返す。メールアドレスを含む */
     public record UserResponse(String id, String email, String username, String displayName,
                                @Schema(types = {"string", "null"}, format = "date-time", description = "アイコンを変えた時刻。アイコンが無ければ null") Instant iconUpdatedAt,
-                               @Schema(types = {"string", "null"}, description = "自己紹介。無ければ null") String bio, Instant createdAt) {
+                               @Schema(types = {"string", "null"}, description = "自己紹介。無ければ null") String bio, Instant createdAt,
+                               @Schema(description = "鍵アカウントか(F-26)") boolean privateAccount) {
         public static UserResponse from(User user) {
             return new UserResponse(user.getId(), user.getEmail(), user.getUsername(), user.getDisplayName(),
-                    user.getIconUpdatedAt(), user.getBio(), user.getCreatedAt());
+                    user.getIconUpdatedAt(), user.getBio(), user.getCreatedAt(), user.isPrivateAccount());
         }
     }
 
@@ -91,10 +93,15 @@ public class UserDtos {
                                   long postsCount, long followingCount, long followersCount, boolean followedByMe,
                                   Instant createdAt,
                                   @Schema(description = "自分がこの人をブロックしているか(F-20)") boolean blocking,
-                                  @Schema(description = "自分がこの人をミュートしているか(F-20)") boolean muting) {
+                                  @Schema(description = "自分がこの人をミュートしているか(F-20)") boolean muting,
+                                  @Schema(description = "鍵アカウントか(F-26)") boolean privateAccount,
+                                  @Schema(description = "自分がフォローのリクエストを送って、承認を待っているか(F-26)") boolean followRequested,
+                                  @Schema(description = "自分がこの人の投稿・フォロー一覧を見られるか。鍵アカウントで、フォローしていなければ false") boolean canViewPosts) {
     }
 
     /** フォロー・解除の結果 */
-    public record FollowResponse(boolean following, long followersCount) {
+    public record FollowResponse(boolean following,
+                                 @Schema(description = "鍵アカウントへのリクエストを送って承認を待っているか(F-26)") boolean requested,
+                                 long followersCount) {
     }
 }

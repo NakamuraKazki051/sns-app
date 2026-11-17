@@ -9,6 +9,8 @@ export type Me = {
   iconUpdatedAt: string | null;
   bio: string | null;
   createdAt: string;
+  /** 鍵アカウントか(F-26) */
+  privateAccount?: boolean;
 };
 
 /** 投稿の投稿者など、他の人にも見せる部分 */
@@ -34,6 +36,12 @@ export type Profile = PublicUser & {
   /** 自分がこの人をブロック・ミュートしているか(F-20) */
   blocking: boolean;
   muting: boolean;
+  /** 鍵アカウントか(F-26) */
+  privateAccount: boolean;
+  /** 自分がフォローのリクエストを送って、承認を待っているか */
+  followRequested: boolean;
+  /** 自分がこの人の投稿・フォロー一覧を見られるか(鍵アカウントで、フォローしていなければ false) */
+  canViewPosts: boolean;
 };
 
 export type Post = {
@@ -78,7 +86,7 @@ export type ReplyPage = { replies: Reply[]; hasMore: boolean };
 /** 通知1件(F-21)。post はどの投稿への反応か(フォローでは null) */
 export type Notification = {
   id: string;
-  type: "LIKE" | "REPLY" | "REPOST" | "FOLLOW";
+  type: "LIKE" | "REPLY" | "REPOST" | "FOLLOW" | "FOLLOW_REQUEST";
   actor: PublicUser;
   post: { id: string; body: string } | null;
   createdAt: string;

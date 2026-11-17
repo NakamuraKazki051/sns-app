@@ -82,8 +82,8 @@ public class ReplyController {
                           HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         postController.findPost(postId, userId);
-        // ブロック・ミュートしている人のリプライは出さない(F-20)
-        Set<String> hidden = visibility.hidden(userId);
+        // ブロック・ミュートしている人と、フォローしていない鍵アカウントのリプライは出さない(F-20、F-26)
+        Set<String> hidden = visibility.postHidden(userId);
         Limit limit = Limit.of(PAGE_SIZE + 1);
         List<Reply> fetched = after == null
                 ? replyRepository.findByPostIdAndUserIdNotInOrderByIdAsc(postId, hidden, limit)

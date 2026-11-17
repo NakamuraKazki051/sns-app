@@ -21,7 +21,8 @@ import java.time.Instant;
 @Table(name = "notifications")
 public class Notification {
 
-    public enum Type { LIKE, REPLY, REPOST, FOLLOW }
+    /** FOLLOW_REQUEST は鍵アカウント(F-26)へのフォローのリクエスト */
+    public enum Type { LIKE, REPLY, REPOST, FOLLOW, FOLLOW_REQUEST }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,7 +36,7 @@ public class Notification {
     private User actor;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 20)
     private Type type;
 
     // FOLLOW では null

@@ -5,6 +5,7 @@ import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.OpenApiConfig;
 import com.snsapp.api.follow.FollowRepository;
+import com.snsapp.api.follow.FollowRequestRepository;
 import com.snsapp.api.user.User;
 import com.snsapp.api.user.UserDtos.UserSummary;
 import com.snsapp.api.user.UserRepository;
@@ -40,11 +41,13 @@ public class BlockController {
     private final BlockRepository blocks;
     private final MuteRepository mutes;
     private final FollowRepository follows;
+    private final FollowRequestRepository followRequests;
     private final UserRepository users;
     private final CurrentUser currentUser;
 
     public BlockController(BlockRepository blocks, MuteRepository mutes, FollowRepository follows,
-                           UserRepository users, CurrentUser currentUser) {
+                           FollowRequestRepository followRequests, UserRepository users, CurrentUser currentUser) {
+        this.followRequests = followRequests;
         this.blocks = blocks;
         this.mutes = mutes;
         this.follows = follows;
@@ -69,6 +72,8 @@ public class BlockController {
         }
         follows.deleteByFollowerIdAndFolloweeId(viewerId, target.getId());
         follows.deleteByFollowerIdAndFolloweeId(target.getId(), viewerId);
+        followRequests.deleteByRequesterIdAndTargetId(viewerId, target.getId());
+        followRequests.deleteByRequesterIdAndTargetId(target.getId(), viewerId);
         return new BlockResponse(true);
     }
 
