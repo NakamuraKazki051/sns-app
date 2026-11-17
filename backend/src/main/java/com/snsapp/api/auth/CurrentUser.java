@@ -37,6 +37,7 @@ public class CurrentUser {
     // 1つのリクエストの中で確かめ終わった人。RequestLogFilter がログに出す
     public static final String VERIFIED_KEY = CurrentUser.class.getName() + ".verified";
     private static final String EXPIRES_AT_KEY = CurrentUser.class.getName() + ".expiresAt";
+    private static final String SESSION_KEY = CurrentUser.class.getName() + ".session";
     /**
      * アクセストークンの残り秒数。画面はこれを見て、切れる少し前に先回りして作り直す
      * (切れてから 401 を受けて作り直すと、そのたびにブラウザのコンソールにエラーが出るため)
@@ -74,7 +75,14 @@ public class CurrentUser {
                 .orElseThrow(() -> ApiException.unauthorized(EXPIRED));
         request.setAttribute(VERIFIED_KEY, verified.userId());
         request.setAttribute(EXPIRES_AT_KEY, verified.expiresAt());
+        request.setAttribute(SESSION_KEY, verified.sessionId());
         return verified.userId();
+    }
+
+    /** この端末のログインの ID(JWT の sid)。ログイン中の端末の一覧で「この端末」に印を付ける */
+    public String requireSessionId(HttpServletRequest request) {
+        require(request);
+        return (String) request.getAttribute(SESSION_KEY);
     }
 
     /**
@@ -97,10 +105,11 @@ public class CurrentUser {
     }
 
     /** ログインした人に、新しいログインのアクセストークンとリフレッシュトークンを Cookie で渡す */
-    public void signIn(HttpServletResponse response, User user) {
+    public void signIn(HttpServletRequest request, HttpServletResponse response, User user) {
         String sessionId = TokenService.newSessionId();
         writeAccessCookie(response, tokens.issue(user.getId(), sessionId, user.getTokenVersion()));
-        writeRefreshCookie(response, refreshTokens.issue(user, sessionId), refreshTokens.ttl());
+        writeRefreshCookie(response, refreshTokens.issue(user, sessionId, request.getHeader(HttpHeaders.USER_AGENT)),
+                refreshTokens.ttl());
     }
 
     /**
@@ -113,7 +122,8 @@ public class CurrentUser {
         if (token == null) {
             throw ApiException.unauthorized("ログインが必要です");
         }
-        RefreshTokens.Result result = retryOnDeadlock(() -> refreshTokens.rotate(token));
+        RefreshTokens.Result result = retryOnDeadlock(
+                () -> refreshTokens.rotate(token, request.getHeader(HttpHeaders.USER_AGENT)));
         if (result.rotated().isPresent()) {
             RefreshTokens.Rotated rotated = result.rotated().get();
             writeAccessCookie(response, tokens.issue(rotated.userId(), rotated.sessionId(), rotated.version()));
@@ -139,6 +149,14 @@ public class CurrentUser {
                     return null;
                 }));
         clearCookie(response);
+    }
+
+    /** 選んだログインを終える(ログイン中の端末の一覧から)。デッドロックならやり直す */
+    void revoke(String sessionId) {
+        retryOnDeadlock(() -> {
+            refreshTokens.revokeSession(sessionId);
+            return null;
+        });
     }
 
     /**

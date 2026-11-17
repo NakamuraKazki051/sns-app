@@ -439,3 +439,10 @@ small.over { color: var(--danger); font-weight: 700; }
 .two-factor-secret { font-size: 14px; word-break: break-all; }
 .recovery-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; margin: 0; padding: 0;
   list-style: none; font-size: 16px; }
+
+/* 設定画面の「ログイン中の端末」 */
+.session-list { list-style: none; margin: 0; padding: 0; }
+.session-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.session-list li:last-child { border-bottom: none; }
+.session-list .small { font-size: 0.85em; margin-top: 2px; }
+.badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 0.75em; background: var(--accent); color: #fff; vertical-align: middle; }

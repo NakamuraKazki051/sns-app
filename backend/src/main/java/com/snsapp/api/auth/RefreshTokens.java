@@ -49,15 +49,17 @@ public class RefreshTokens {
     private final RefreshTokenRepository repository;
     private final RevokedSessionRepository revokedSessions;
     private final UserRepository users;
+    private final UserSessionRepository sessions;
     private final TokenService tokens;
     private final Duration ttl;
 
     public RefreshTokens(RefreshTokenRepository repository, RevokedSessionRepository revokedSessions,
-                         UserRepository users, TokenService tokens,
+                         UserRepository users, UserSessionRepository sessions, TokenService tokens,
                          @Value("${app.auth.refresh-token-ttl}") Duration ttl) {
         this.repository = repository;
         this.revokedSessions = revokedSessions;
         this.users = users;
+        this.sessions = sessions;
         this.tokens = tokens;
         this.ttl = ttl;
     }
@@ -66,16 +68,19 @@ public class RefreshTokens {
         return ttl;
     }
 
-    /** ログインしたときに、新しいログインのリフレッシュトークンを作る */
+    /** ログインしたときに、新しいログインのリフレッシュトークンを作り、ログイン中の端末の一覧に足す */
     @Transactional
-    public String issue(User user, String sessionId) {
-        repository.deleteExpired(tokens.now());
+    public String issue(User user, String sessionId, String userAgent) {
+        Instant now = tokens.now();
+        repository.deleteExpired(now);
+        sessions.deleteExpired(now);
+        sessions.save(new UserSession(sessionId, user.getId(), user.getTokenVersion(), userAgent, now, now.plus(ttl)));
         return save(user.getId(), sessionId, user.getTokenVersion());
     }
 
-    /** 届いたリフレッシュトークンを、同じログインの新しいものと取り替える */
+    /** 届いたリフレッシュトークンを、同じログインの新しいものと取り替える。端末の一覧の「最後に使った時刻」も進める */
     @Transactional
-    public Result rotate(String token) {
+    public Result rotate(String token, String userAgent) {
         Instant now = tokens.now();
         String hash = LinkTokens.hash(token);
         // ロックして読むので、同時に来たほかの取り替え・ログアウトが終わった後の状態が見える
@@ -104,6 +109,11 @@ public class RefreshTokens {
             return Result.fail(Failure.INVALID);
         }
         String next = save(current.getUserId(), current.getSessionId(), current.getTokenVersion());
+        // 一覧を作る前(V15 より前)からのログインには行が無いので、ここで足す
+        sessions.findById(current.getSessionId()).ifPresentOrElse(
+                session -> session.touch(userAgent, now, now.plus(ttl)),
+                () -> sessions.save(new UserSession(current.getSessionId(), current.getUserId(),
+                        current.getTokenVersion(), userAgent, now, now.plus(ttl))));
         return Result.ok(new Rotated(next, current.getUserId(), current.getSessionId(), current.getTokenVersion()));
     }
 
@@ -122,6 +132,7 @@ public class RefreshTokens {
     public void revokeSession(String sessionId) {
         Instant now = tokens.now();
         repository.deleteBySession(sessionId);
+        sessions.findById(sessionId).ifPresent(sessions::delete);
         revokedSessions.deleteExpired(now);
         revokedSessions.save(new RevokedSession(sessionId, now.plus(tokens.ttl())));
     }
