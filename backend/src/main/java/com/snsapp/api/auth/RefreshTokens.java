@@ -2,6 +2,7 @@ package com.snsapp.api.auth;
 
 import com.snsapp.api.user.User;
 import com.snsapp.api.user.UserRepository;
+import com.snsapp.api.realtime.RealtimeHub;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,15 +52,17 @@ public class RefreshTokens {
     private final UserRepository users;
     private final UserSessionRepository sessions;
     private final TokenService tokens;
+    private final RealtimeHub realtime;
     private final Duration ttl;
 
     public RefreshTokens(RefreshTokenRepository repository, RevokedSessionRepository revokedSessions,
-                         UserRepository users, UserSessionRepository sessions, TokenService tokens,
+                         UserRepository users, UserSessionRepository sessions, TokenService tokens, RealtimeHub realtime,
                          @Value("${app.auth.refresh-token-ttl}") Duration ttl) {
         this.repository = repository;
         this.revokedSessions = revokedSessions;
         this.users = users;
         this.sessions = sessions;
+        this.realtime = realtime;
         this.tokens = tokens;
         this.ttl = ttl;
     }
@@ -132,7 +135,11 @@ public class RefreshTokens {
     public void revokeSession(String sessionId) {
         Instant now = tokens.now();
         repository.deleteBySession(sessionId);
-        sessions.findById(sessionId).ifPresent(sessions::delete);
+        sessions.findById(sessionId).ifPresent(session -> {
+            sessions.delete(session);
+            // その人の WebSocket をいったん閉じる。ほかの端末はつなぎ直せるが、終えた端末はつなげない
+            realtime.closeAll(session.getUserId());
+        });
         revokedSessions.deleteExpired(now);
         revokedSessions.save(new RevokedSession(sessionId, now.plus(tokens.ttl())));
     }

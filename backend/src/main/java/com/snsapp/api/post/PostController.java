@@ -5,6 +5,7 @@ import com.snsapp.api.block.Visibility;
 import com.snsapp.api.hashtag.HashtagService;
 import com.snsapp.api.notification.Notification;
 import com.snsapp.api.notification.NotificationService;
+import com.snsapp.api.realtime.RealtimeHub;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.OpenApiConfig;
@@ -94,12 +95,15 @@ public class PostController {
     private final Visibility visibility;
     private final NotificationService notifications;
     private final HashtagService hashtags;
+    private final RealtimeHub realtime;
 
     public PostController(PostRepository postRepository, PostLikeRepository likeRepository,
                           FollowRepository followRepository, UserRepository userRepository, PostViews postViews,
                           CurrentUser currentUser, RateLimiter rateLimiter, ImageStorage imageStorage,
-                          Visibility visibility, NotificationService notifications, HashtagService hashtags) {
+                          Visibility visibility, NotificationService notifications, HashtagService hashtags,
+                          RealtimeHub realtime) {
         this.hashtags = hashtags;
+        this.realtime = realtime;
         this.notifications = notifications;
         this.visibility = visibility;
         this.postRepository = postRepository;
@@ -225,6 +229,7 @@ public class PostController {
         acquirePostSlot(userId);
         Post post = postRepository.save(new Post(findUser(userId), body));
         hashtags.sync(post);
+        realtime.broadcast(RealtimeHub.Event.POST);
         return postViews.one(post, userId);
     }
 
@@ -256,6 +261,7 @@ public class PostController {
             throw e;
         }
         hashtags.sync(post);
+        realtime.broadcast(RealtimeHub.Event.POST);
         // 保存できたあとは画像を消さない(応答を作るところで失敗しても、投稿は残っている)
         return postViews.one(post, userId);
     }

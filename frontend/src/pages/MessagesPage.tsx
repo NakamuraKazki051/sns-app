@@ -11,6 +11,7 @@ import { LoadFailed } from "../components/LoadFailed";
 import { useFeedback } from "../feedback";
 import { DM_MAX, fullTime, relativeTime } from "../text";
 import type { Conversation, DirectMessage, Profile } from "../types";
+import { isRealtimeConnected, useRealtime } from "../realtime";
 import { NotFoundPage } from "./NotFoundPage";
 
 /** 会話を開いている間、新着と既読を確かめる間隔 */
@@ -166,12 +167,22 @@ function ConversationContent({ username }: { username: string }) {
     };
   }, [username, isMe, fetchLatest, onMessagesRead, attempt]);
 
-  // 開いている間は、最初のページを5秒ごとに聞き直す(新着と、相手が読んだかを知るため)。タブが裏なら聞かない
+  // 最初のページを聞き直す(新着と、相手が読んだか・取り消したかを知るため)
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
+  // 相手からの知らせ(届いた・読んだ・取り消した。F-28)で、すぐ聞き直す
+  useRealtime((event) => {
+    if ((event.type === "DM" && event.from?.toLowerCase() === username.toLowerCase()) || event.type === "RECONNECTED") {
+      void refreshRef.current();
+    }
+  });
+
+  // 開いている間は5秒ごとにも聞き直す(サーバーとつながっていて知らせが届くなら30秒ごと)。タブが裏なら聞かない
   useEffect(() => {
     if (!loaded) return;
     let cancelled = false;
     let running = false;
-    const timer = window.setInterval(async () => {
+    let ticks = 0;
+    const refresh = async () => {
       if (running || document.visibilityState !== "visible") return;
       running = true;
       try {
@@ -186,10 +197,17 @@ function ConversationContent({ username }: { username: string }) {
       } finally {
         running = false;
       }
+    };
+    refreshRef.current = refresh;
+    const timer = window.setInterval(() => {
+      ticks++;
+      if (isRealtimeConnected() && ticks % 6 !== 0) return;
+      void refresh();
     }, CONVERSATION_POLL_MS);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      refreshRef.current = async () => {};
     };
   }, [loaded, fetchLatest, onMessagesRead]);
 

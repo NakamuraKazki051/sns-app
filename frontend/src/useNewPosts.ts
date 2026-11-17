@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
+import { onRealtime } from "./realtime";
 import type { NewPosts, Post } from "./types";
 
 /** 新着を確かめる間隔 */
 export const POLL_INTERVAL_MS = 30_000;
+/** 投稿の知らせ(F-28)が続けて届いても、この時間にまとめて1回だけ数え直す */
+export const NEW_POSTS_DEBOUNCE_MS = 1_000;
 
 /**
  * 新着を数える基準の ID。サーバーから読んだ投稿のうち、一番新しいもの。
@@ -64,9 +67,18 @@ export function useNewPosts(path: string, after: string | null) {
       if (document.visibilityState === "visible") void check();
     };
     document.addEventListener("visibilitychange", onVisible);
+    // 誰かが投稿したと知らされたら(F-28)、すぐ数え直す。続けて届いても1秒にまとめる
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = onRealtime((event) => {
+      if (event.type !== "POST" && event.type !== "RECONNECTED") return;
+      clearTimeout(debounce);
+      debounce = setTimeout(() => void check(), NEW_POSTS_DEBOUNCE_MS);
+    });
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      clearTimeout(debounce);
+      unsubscribe();
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [path, after]);

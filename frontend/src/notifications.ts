@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { useRealtime, type RealtimeEvent } from "./realtime";
 import { POLL_INTERVAL_MS } from "./useNewPosts";
 
 /**
  * 未読の数(通知 F-21・DM F-23)。新着のお知らせと同じく30秒ごとに確かめ、タブが裏にあるときは聞きに行かない。
- * reset は 0 にする(通知の画面ですべて既読にしたとき)。refresh はすぐ聞き直す(DM の会話を開いて一部だけ既読にしたとき)
+ * reset は 0 にする(通知の画面ですべて既読にしたとき)。refresh はすぐ聞き直す(DM の会話を開いて一部だけ既読にしたとき)。
+ * サーバーから event の知らせ(F-28)が届いたときも、すぐ聞き直す
  */
-export function useUnreadCount(path: string) {
+export function useUnreadCount(path: string, event: RealtimeEvent["type"]) {
   const [count, setCount] = useState(0);
   const checkRef = useRef<() => Promise<void>>(async () => {});
 
@@ -41,15 +43,19 @@ export function useUnreadCount(path: string) {
     };
   }, [path]);
 
+  useRealtime((e) => {
+    if (e.type === event || e.type === "RECONNECTED") void checkRef.current();
+  });
+
   const reset = useCallback(() => setCount(0), []);
   const refresh = useCallback(() => void checkRef.current(), []);
   return { count, reset, refresh };
 }
 
 export function useUnreadNotifications() {
-  return useUnreadCount("/api/notifications/unread-count");
+  return useUnreadCount("/api/notifications/unread-count", "NOTIFICATION");
 }
 
 export function useUnreadMessages() {
-  return useUnreadCount("/api/dm/unread-count");
+  return useUnreadCount("/api/dm/unread-count", "DM");
 }

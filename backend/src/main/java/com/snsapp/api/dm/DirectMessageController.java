@@ -11,6 +11,7 @@ import com.snsapp.api.post.ImageStorage;
 import com.snsapp.api.post.PostDtos.ImageResponse;
 import com.snsapp.api.post.PostImage;
 import com.snsapp.api.post.UploadedImage;
+import com.snsapp.api.realtime.RealtimeHub;
 import com.snsapp.api.user.User;
 import com.snsapp.api.user.UserDtos.PublicUser;
 import com.snsapp.api.user.UserRepository;
@@ -102,10 +103,13 @@ public class DirectMessageController {
     private final Visibility visibility;
     private final RateLimiter rateLimiter;
     private final ImageStorage imageStorage;
+    private final RealtimeHub realtime;
 
     public DirectMessageController(DirectMessageRepository messages, UserRepository users, CurrentUser currentUser,
-                                   Visibility visibility, RateLimiter rateLimiter, ImageStorage imageStorage) {
+                                   Visibility visibility, RateLimiter rateLimiter, ImageStorage imageStorage,
+                                   RealtimeHub realtime) {
         this.imageStorage = imageStorage;
+        this.realtime = realtime;
         this.messages = messages;
         this.users = users;
         this.currentUser = currentUser;
@@ -161,7 +165,10 @@ public class DirectMessageController {
                 ? messages.findBetween(me, partner.getId(), limit)
                 : messages.findBetweenBefore(me, partner.getId(), before, limit);
         if (before == null) {
-            messages.markRead(me, partner.getId(), Instant.now());
+            // 読んだことを相手の画面に知らせる(「既読」を付ける)
+            if (messages.markRead(me, partner.getId(), Instant.now()) > 0) {
+                realtime.send(partner.getId(), RealtimeHub.Event.DM, usernameOf(me));
+            }
         }
         List<DirectMessage> page = fetched.stream().limit(PAGE_SIZE).toList();
         boolean hasMore = fetched.size() > PAGE_SIZE;
@@ -184,7 +191,9 @@ public class DirectMessageController {
         }
         String body = bodyOf(request.body(), false);
         acquireSendSlot(me);
-        return MessageResponse.of(messages.save(new DirectMessage(me, partner.getId(), body)), me);
+        DirectMessage saved = messages.save(new DirectMessage(me, partner.getId(), body));
+        realtime.send(partner.getId(), RealtimeHub.Event.DM, usernameOf(me));
+        return MessageResponse.of(saved, me);
     }
 
     /** 画像付きの DM(multipart/form-data)。画像があれば本文は空でもよい */
@@ -209,7 +218,9 @@ public class DirectMessageController {
         DirectMessage message = new DirectMessage(me, partner.getId(), text);
         message.attach(uploaded.toPostImage(key));
         try {
-            return MessageResponse.of(messages.save(message), me);
+            DirectMessage saved = messages.save(message);
+            realtime.send(partner.getId(), RealtimeHub.Event.DM, usernameOf(me));
+            return MessageResponse.of(saved, me);
         } catch (RuntimeException e) {
             deleteImageQuietly(key);
             throw e;
@@ -250,6 +261,7 @@ public class DirectMessageController {
         PostImage image = message.getImage();
         messages.delete(message);
         messages.flush();
+        realtime.send(message.getRecipientId(), RealtimeHub.Event.DM, usernameOf(me));
         if (image != null) {
             deleteImageQuietly(image.key());
         }
@@ -276,6 +288,10 @@ public class DirectMessageController {
             throw ApiException.badRequest("メッセージは" + DirectMessage.BODY_MAX + "文字以内で入力してください");
         }
         return body;
+    }
+
+    private String usernameOf(String userId) {
+        return users.findById(userId).map(User::getUsername).orElse(null);
     }
 
     private void acquireSendSlot(String me) {
