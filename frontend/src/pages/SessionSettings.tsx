@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
+import type { SessionResponse } from "../api-schema";
 import { api, errorMessage } from "../api";
 import { useAuth } from "../auth";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useFeedback } from "../feedback";
 import { fullTime, relativeTime } from "../text";
 
-export type Session = { id: string; device: string; createdAt: string; lastUsedAt: string; current: boolean };
+export type Session = SessionResponse;
 
 /**
  * 設定画面の「ログイン中の端末」。どの端末でログインしているかを見て、選んだ端末をログアウトさせる。

@@ -57,7 +57,7 @@ export function SearchPage() {
   );
 }
 
-type Trend = { tag: string; postsCount: number };
+type Trend = import("../api-schema").Trend;
 
 /** トレンド(F-22): この24時間によく使われたハッシュタグ */
 function Trends() {

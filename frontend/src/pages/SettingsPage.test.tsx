@@ -6,7 +6,7 @@ import type { Me } from "../types";
 import { SettingsPage } from "./SettingsPage";
 
 const ME: Me = {
-  id: "u1", email: "a@example.com", username: "alice", displayName: "アリス", iconUpdatedAt: null, bio: null, createdAt: "",
+  id: "u1", email: "a@example.com", username: "alice", displayName: "アリス", iconUpdatedAt: null, bio: null, createdAt: "", privateAccount: false,
 };
 const updateMe = vi.fn();
 const deleteAccount = vi.fn();

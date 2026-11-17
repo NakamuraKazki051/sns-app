@@ -7,10 +7,10 @@ import type { DirectMessage, Me } from "../types";
 import { ConversationPage, MessagesPage, mergeMessages, replaceLatest } from "./MessagesPage";
 
 const ME: Me = {
-  id: "u1", email: "a@example.com", username: "alice", displayName: "アリス", iconUpdatedAt: null, bio: null, createdAt: "",
+  id: "u1", email: "a@example.com", username: "alice", displayName: "アリス", iconUpdatedAt: null, bio: null, createdAt: "", privateAccount: false,
 };
 const BOB = { id: "u2", username: "bob", displayName: "ボブ", iconUpdatedAt: null };
-const PROFILE = { ...BOB, bio: null, postsCount: 0, followingCount: 0, followersCount: 0, followedByMe: false, createdAt: "", blocking: false, muting: false };
+const PROFILE = { ...BOB, bio: null, postsCount: 0, followingCount: 0, followersCount: 0, followedByMe: false, createdAt: "", blocking: false, muting: false, privateAccount: false, followRequested: false, canViewPosts: true };
 const showError = vi.fn();
 
 vi.mock("../api", async (original) => ({ ...(await original<typeof import("../api")>()), api: vi.fn() }));
@@ -20,7 +20,7 @@ vi.mock("../feedback", () => ({
 }));
 
 function message(id: string, overrides: Partial<DirectMessage> = {}): DirectMessage {
-  return { id, mine: false, body: `本文${id}`, createdAt: "2026-11-10T00:00:00Z", read: false, ...overrides };
+  return { id, mine: false, body: `本文${id}`, createdAt: "2026-11-10T00:00:00Z", read: false, image: null, ...overrides };
 }
 
 function renderAt(path: string, onMessagesRead = vi.fn()) {

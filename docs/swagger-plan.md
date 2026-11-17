@@ -38,7 +38,7 @@ API の仕様書をコードから自動で作り、ブラウザで読んで試�
 
 - **対象：** `/api/` の下の API、32個（認証4、投稿11、リプライ3、リポスト2、自分の情報3、ユーザー9）
 - **対象外：** 画面を返す `SpaController`（`springdoc.paths-to-match: /api/**` で外す）
-- **今回はやらない：** 仕様書から TypeScript の型を自動生成すること。`frontend/src/types.ts` は手書きのまま（やるなら別の計画にする）
+- **画面の型（2026-11-17 追加）：** 仕様書から TypeScript の型を自動で作る（`frontend/src/api-schema.ts`）。`OpenApiDocTest` が仕様書と一緒に書き出し（`-Dopenapi.update=true`）、コードと合っているかも確かめる。作るのは Java のテストの中（`TypeScriptTypes.java`）で、npm のパッケージは足さない（openapi-typescript は TypeScript 7 に対応していないため）。`frontend/src/types.ts` は、作った型に画面で使う名前を付けるだけ
 
 ## 公開の方針
 

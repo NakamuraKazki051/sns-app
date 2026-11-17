@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../api";
-import type { UserSummary } from "../types";
+import type { RecommendedUser as Recommended } from "../api-schema";
 import { Avatar } from "./Avatar";
 
-export type RecommendedUser = UserSummary & {
-  reason: "FOLLOWED_BY_FOLLOWING" | "POPULAR" | "NEW";
-  mutualCount: number;
-};
+export type RecommendedUser = Recommended;
 
 function reasonText(user: RecommendedUser): string {
   switch (user.reason) {

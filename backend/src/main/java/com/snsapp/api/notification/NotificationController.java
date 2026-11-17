@@ -37,13 +37,13 @@ public class NotificationController {
     }
 
     public record NotificationResponse(@Schema(description = "通知 ID(文字列)") String id,
-                                       @Schema(allowableValues = {"LIKE", "REPLY", "REPOST", "FOLLOW"}) String type,
+                                       @Schema(description = "種類。FOLLOW_REQUEST は鍵アカウントへのフォローのリクエスト") Notification.Type type,
                                        PublicUser actor,
-                                       @Schema(types = {"object", "null"}, description = "どの投稿への反応か。フォローでは null") PostSummary post,
+                                       @Schema(types = {"object", "null"}, description = "どの投稿への反応か。フォローとフォローのリクエストでは null") PostSummary post,
                                        Instant createdAt, boolean read) {
         static NotificationResponse from(Notification n) {
             Post post = n.getPost();
-            return new NotificationResponse(n.getId().toString(), n.getType().name(), PublicUser.from(n.getActor()),
+            return new NotificationResponse(n.getId().toString(), n.getType(), PublicUser.from(n.getActor()),
                     post == null ? null : new PostSummary(post.getId().toString(), post.getBody()),
                     n.getCreatedAt(), n.getReadAt() != null);
         }

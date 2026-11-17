@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, errorMessage } from "../api";
+import type { ReportResponse } from "../api-schema";
 import { useFeedback } from "../feedback";
 import { countChars } from "../text";
 
-export type ReportReason = "SPAM" | "HARASSMENT" | "INAPPROPRIATE" | "IMPERSONATION" | "OTHER";
+export type ReportReason = ReportResponse["reason"];
 
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
   { value: "SPAM", label: "スパム・宣伝" },
