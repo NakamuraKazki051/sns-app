@@ -28,6 +28,10 @@ public interface FollowRequestRepository extends JpaRepository<FollowRequest, Lo
     @EntityGraph(attributePaths = "requester")
     List<FollowRequest> findByTargetId(String targetId);
 
+    /** 自分がリクエストを送って、承認を待っている相手 */
+    @Query("select r.targetId from FollowRequest r where r.requester.id = :me")
+    List<String> findRequestedIds(@Param("me") String me);
+
     @Transactional
     @Modifying
     @Query("delete from FollowRequest r where r.requester.id = :requesterId and r.targetId = :targetId")

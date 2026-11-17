@@ -23,6 +23,21 @@ public interface FollowRepository extends JpaRepository<Follow, Long> {
     @Query("select f.followee.id from Follow f where f.follower.id = :followerId")
     List<String> findFolloweeIds(@Param("followerId") String followerId);
 
+    /**
+     * おすすめ(F-27): フォロー中の人がフォローしている人と、その人をフォローしているフォロー中の人の数(多い順)。
+     * excluded(自分・フォロー済み・ブロック中など)は除く。行は [ユーザー ID, 人数]
+     */
+    @Query("select f2.followee.id, count(f2) from Follow f1, Follow f2"
+            + " where f1.follower.id = :me and f2.follower.id = f1.followee.id and f2.followee.id not in :excluded"
+            + " group by f2.followee.id order by count(f2) desc, f2.followee.id")
+    List<Object[]> findFollowedByFollowing(@Param("me") String me, @Param("excluded") Collection<String> excluded,
+                                           Limit limit);
+
+    /** おすすめ(F-27): フォロワーの多い人(多い順)。行は [ユーザー ID, フォロワー数] */
+    @Query("select f.followee.id, count(f) from Follow f where f.followee.id not in :excluded"
+            + " group by f.followee.id order by count(f) desc, f.followee.id")
+    List<Object[]> findMostFollowed(@Param("excluded") Collection<String> excluded, Limit limit);
+
     /** フォロー中の一覧(新しくフォローした順) */
     @EntityGraph(attributePaths = "followee")
     List<Follow> findByFollowerIdAndFolloweeIdNotInOrderByIdDesc(String followerId, Collection<String> hidden, Limit limit);

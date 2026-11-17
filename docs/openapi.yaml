@@ -1649,6 +1649,28 @@ paths:
       summary: リプライする
       tags:
       - リプライ
+  /api/recommendations/users:
+    get:
+      description: 5人まで。フォロー中の人がよくフォローしている人を先に、足りなければフォロワーの多い人、最近登録した人。自分・フォロー済み・リクエスト中・ブロック中の人は出さない
+      operationId: recommendUsers
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecommendedUser"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: おすすめのユーザー
+      tags:
+      - 投稿
   /api/replies/{id}:
     delete:
       description: 自分のリプライだけ消せる
@@ -1858,6 +1880,27 @@ paths:
                 $ref: "#/components/schemas/ApiError"
           description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
       summary: 全体タイムラインの新着
+      tags:
+      - 投稿
+  /api/timeline/recommended:
+    get:
+      description: この3日間の投稿から、いいね・リポスト(2倍)・リプライの多い順に20件(同じなら新しい順)。自分の投稿と、見えない人の投稿は出さない。続きは無い(hasMore
+        は false)
+      operationId: getRecommendedTimeline
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: おすすめの投稿
       tags:
       - 投稿
   /api/trends:
@@ -2802,6 +2845,35 @@ components:
           description: アイコンを変えた時刻。アイコンが無ければ null
         id:
           type: string
+        username:
+          type: string
+    RecommendedUser:
+      type: object
+      properties:
+        bio:
+          type:
+          - string
+          - "null"
+        displayName:
+          type: string
+        iconUpdatedAt:
+          type:
+          - string
+          - "null"
+          format: date-time
+        id:
+          type: string
+        mutualCount:
+          type: integer
+          format: int64
+          description: FOLLOWED_BY_FOLLOWING なら、その人をフォローしているフォロー中の人の数
+        reason:
+          type: string
+          description: おすすめの理由
+          enum:
+          - FOLLOWED_BY_FOLLOWING
+          - POPULAR
+          - NEW
         username:
           type: string
     RecoveryCodes:

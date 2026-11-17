@@ -57,6 +57,23 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     @Query("delete from Post p where p.id = :id and p.user.id = :userId")
     int deleteOwn(@Param("id") Long id, @Param("userId") String userId);
 
+    @EntityGraph(attributePaths = "user")
+    List<Post> findByIdIn(Collection<Long> ids);
+
+    /**
+     * おすすめの投稿(F-27)。新しい投稿 candidates 件のうち since より後のものを、
+     * いいね + リポスト×2 + リプライ の多い順に limit 件。hidden の人の投稿は除く。
+     * 候補を新しいものに絞るので、投稿が増えても数える量は増えない(いいね・リポスト・リプライは post_id の索引で数える)
+     */
+    @Query(value = "select p.id from (select id from posts where user_id not in (:hidden) order by id desc limit :candidates) c"
+            + " join posts p on p.id = c.id where p.created_at > :since"
+            + " order by ((select count(*) from likes l where l.post_id = p.id)"
+            + " + 2 * (select count(*) from reposts r where r.post_id = p.id)"
+            + " + (select count(*) from replies x where x.post_id = p.id)) desc, p.id desc limit :limit",
+            nativeQuery = true)
+    List<Long> findRecommendedIds(@Param("hidden") Collection<String> hidden, @Param("since") java.time.Instant since,
+                                  @Param("candidates") int candidates, @Param("limit") int limit);
+
     /** 管理者が通報を受けて消す(誰の投稿でも)。消した件数を返す */
     @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)
