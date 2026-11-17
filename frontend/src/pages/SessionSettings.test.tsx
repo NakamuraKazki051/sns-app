@@ -38,7 +38,7 @@ describe("SessionSettings", () => {
     render(<SessionSettings />);
     const list = await screen.findByRole("list", { name: "ログイン中の端末" });
     const iphone = within(list).getAllByRole("listitem")[1];
-    await userEvent.click(within(iphone).getByRole("button", { name: "ログアウト" }));
+    await userEvent.click(within(iphone).getByRole("button", { name: "Safari(iPhone)をログアウト" }));
 
     expect(api).toHaveBeenCalledWith("/api/me/sessions/s2", { method: "DELETE" });
     await waitFor(() => expect(within(list).getAllByRole("listitem")).toHaveLength(2));
@@ -49,7 +49,7 @@ describe("SessionSettings", () => {
   it("この端末を選んだら、ふつうのログアウト", async () => {
     render(<SessionSettings />);
     const list = await screen.findByRole("list", { name: "ログイン中の端末" });
-    await userEvent.click(within(within(list).getAllByRole("listitem")[0]).getByRole("button", { name: "ログアウト" }));
+    await userEvent.click(within(within(list).getAllByRole("listitem")[0]).getByRole("button", { name: "この端末をログアウト" }));
     expect(logout).toHaveBeenCalledOnce();
   });
 

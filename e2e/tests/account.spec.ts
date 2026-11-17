@@ -70,7 +70,7 @@ test("メールアドレスは確認リンクを開くまで変わらず、開�
 
   await openVerificationLink(page, newEmail);
   await page.goto("/");
-  await page.getByRole("button", { name: "ログアウト" }).click();
+  await page.getByRole("button", { name: "ログアウト", exact: true }).click();
   await expect(page).toHaveURL(/\/login/);
 
   await submitLogin(page, erin.email, erin.password);
@@ -104,7 +104,7 @@ test("ログアウトすると画面を開けず、ログインすると元の�
   const grace = newAccount("grace");
   const page = await signUp(session, grace);
 
-  await page.getByRole("button", { name: "ログアウト" }).click();
+  await page.getByRole("button", { name: "ログアウト", exact: true }).click();
   await expect(page).toHaveURL(/\/login/);
 
   await page.goto("/settings");
@@ -145,7 +145,7 @@ test("パスワードを忘れても、メールのリンクから新しいパ�
   const page = await signUp(session, jane);
   const otherDevice = await session(jane);
   const newPassword = "e2e-reset-password";
-  await page.getByRole("button", { name: "ログアウト" }).click();
+  await page.getByRole("button", { name: "ログアウト", exact: true }).click();
 
   await page.getByRole("link", { name: "パスワードを忘れた方" }).click();
   // ログイン画面にもメールアドレスの欄があるので、画面が替わってから入れる
@@ -184,7 +184,7 @@ test("2段階認証を有効にすると、ログインで認証コードかリ�
   await page.getByRole("button", { name: "保管しました" }).click();
   await expect(page.getByText("残りのリカバリーコード：10個")).toBeVisible();
 
-  await page.getByRole("button", { name: "ログアウト" }).click();
+  await page.getByRole("button", { name: "ログアウト", exact: true }).click();
   await submitLogin(page, tina.email, tina.password);
   await page.getByLabel("認証コード").fill("000000");
   await page.getByRole("button", { name: "ログイン", exact: true }).click();
@@ -194,7 +194,7 @@ test("2段階認証を有効にすると、ログインで認証コードかリ�
   await page.getByRole("button", { name: "ログイン", exact: true }).click();
   await expect(page.getByRole("navigation", { name: "メニュー" })).toBeVisible();
 
-  await page.getByRole("button", { name: "ログアウト" }).click();
+  await page.getByRole("button", { name: "ログアウト", exact: true }).click();
   await submitLogin(page, tina.email, tina.password);
   await page.getByLabel("認証コード").fill(recovery);
   await page.getByRole("button", { name: "ログイン", exact: true }).click();

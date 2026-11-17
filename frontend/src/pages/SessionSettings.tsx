@@ -83,7 +83,13 @@ export function SessionSettings() {
                   </span>
                 </div>
               </div>
-              <button type="button" className="button" disabled={busy} onClick={() => revoke(s)}>
+              <button
+                type="button"
+                className="button"
+                disabled={busy}
+                aria-label={s.current ? "この端末をログアウト" : `${s.device}をログアウト`}
+                onClick={() => revoke(s)}
+              >
                 ログアウト
               </button>
             </li>
