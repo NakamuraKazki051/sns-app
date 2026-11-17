@@ -463,3 +463,10 @@ small.over { color: var(--danger); font-weight: 700; }
 .checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .request-buttons { display: flex; gap: 6px; }
 .private-notice { text-align: center; padding: 32px 16px; }
+
+/* DM の画像と取り消し */
+.dm-image { display: block; padding: 0; border: none; background: none; cursor: zoom-in; margin-bottom: 2px; border-radius: 12px; overflow: hidden; max-width: 260px; }
+.dm-image img { display: block; width: 100%; height: auto; max-height: 320px; object-fit: cover; }
+.dm.mine .dm-image { align-self: flex-end; }
+.dm-delete { font-size: 12px; color: var(--muted); }
+.dm-delete:hover { color: var(--danger); }

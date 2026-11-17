@@ -1,6 +1,8 @@
 package com.snsapp.api.dm;
 
+import com.snsapp.api.post.PostImage;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -34,6 +36,10 @@ public class DirectMessage {
 
     private Instant readAt;
 
+    // 付けた画像。無ければ null(列が全部 null)
+    @Embedded
+    private PostImage image;
+
     protected DirectMessage() {
     }
 
@@ -62,6 +68,14 @@ public class DirectMessage {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public PostImage getImage() {
+        return image;
+    }
+
+    public void attach(PostImage image) {
+        this.image = image;
     }
 
     public Instant getReadAt() {

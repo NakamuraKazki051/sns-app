@@ -20,7 +20,7 @@ public class AccountDeletionService {
         this.entityManager = entityManager;
     }
 
-    /** 消して、その人の投稿の画像の置き場所の名前を返す(画像は DB の外にあるので、呼んだ側が消す) */
+    /** 消して、その人の投稿と送った DM の画像の置き場所の名前を返す(画像は DB の外にあるので、呼んだ側が消す) */
     @Transactional
     public List<String> delete(String userId) {
         // まだ DB に書いていない変更があれば先に書く(SQL で直接消すので、あとから書かれると食い違う)
@@ -30,6 +30,14 @@ public class AccountDeletionService {
                         "select image_key from posts where user_id = :id and image_key is not null")
                 .setParameter("id", userId)
                 .getResultList();
+        // 送った DM の画像も(DM は DB が一緒に消す)
+        @SuppressWarnings("unchecked")
+        List<String> dmImageKeys = entityManager.createNativeQuery(
+                        "select image_key from direct_messages where sender_id = :id and image_key is not null")
+                .setParameter("id", userId)
+                .getResultList();
+        imageKeys = new java.util.ArrayList<>(imageKeys);
+        imageKeys.addAll(dmImageKeys);
         // 他の人の投稿に付けたもの
         run("delete from likes where user_id = :id", userId);
         run("delete from reposts where user_id = :id", userId);

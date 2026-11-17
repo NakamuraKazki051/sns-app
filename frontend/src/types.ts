@@ -100,6 +100,8 @@ export type DirectMessage = {
   body: string;
   createdAt: string;
   read: boolean;
+  /** 付けた画像。無ければ null(古いサーバーの応答では無い) */
+  image?: PostImage | null;
 };
 
 /** DM の会話一覧の1件 */
