@@ -269,13 +269,18 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | --- | --- | --- |
 | GET | `/api/dm` | `[{ partner, lastMessage, unreadCount }]`。最後のメッセージが新しい会話から50件 |
 | GET | `/api/dm/unread-count` | `{ count }`。読んでいない DM の数。画面が30秒ごとに聞く（タブが裏なら聞かない） |
-| GET | `/api/dm/{username}?before=` | `{ messages, hasMore, nextCursor }`。相手とのやりとりを新しい順に30件。1件は `{ id, mine, body, createdAt, read }`。最初のページを読むと、相手から届いた分が既読になる |
-| POST | `/api/dm/{username}` | 201 と送ったメッセージ。本文は前後の空白を落として1〜500字（見た目の1文字で数える）。自分あては 400。1人1分に20通まで（429） |
+| GET | `/api/dm/{username}?before=` | `{ messages, hasMore, nextCursor }`。相手とのやりとりを新しい順に30件。1件は `{ id, mine, body, createdAt, read, image: { url, width, height } | null }`。最初のページを読むと、相手から届いた分が既読になる |
+| POST | `/api/dm/{username}` | 201 と送ったメッセージ。本文は前後の空白を落として1〜500字（見た目の1文字で数える）。自分あては 400。1人1分に20通まで（429）。画像を付けるときは multipart/form-data で `image`（JPEG・PNG、5MB まで。確かめ方は投稿の画像と同じ）と `body`（空でもよい）（2026-11-17 追加） |
+| GET | `/api/dm/messages/{id}/image` | DM の画像。送った人と受け取った人だけ（ほかの人・ブロック中は 404）。ブラウザに1年キャッシュさせる（2026-11-17 追加） |
+| DELETE | `/api/dm/messages/{id}` | 204。自分が送ったメッセージを取り消す（相手の画面からも消える。画像も消す）。受け取ったもの・ほかの人のものは 404（2026-11-17 追加） |
 
 - 会話のテーブルは作らない。「自分と相手の間のメッセージ」を毎回引く
 - ブロックしている・されている相手は、いないものとして 404。一覧・未読の数からも外す（外せば前のやりとりもまた見える）。ミュートは DM に関係しない
 - 画面：メニューに「メッセージ」と未読の数、`/messages` に会話一覧、`/messages/ユーザー名` にやりとり（古い順、自分のものは右）。会話を開いている間は最初のページを5秒ごとに聞き直し、新着と相手の既読を反映する。自分の最後のメッセージに「既読」か「送信済み」
-- ユーザーを消すと、その人の DM も DB が一緒に消す
+- ユーザーを消すと、その人の DM も DB が一緒に消す（送った DM の画像も消す）
+- 画像は投稿の画像と同じ置き場所（ローカルは `backend/data/post-images/`、AWS は S3 の `post-images/`）。DB には名前と形式・幅・高さだけ（`V18__dm_images.sql`）
+- 取り消しは消すだけ（「取り消しました」の跡は残さない）。相手の画面は5秒ごとの聞き直しで消える（最初のページの範囲で、届かなかったものを消す）
+- 画面：入力欄の「🖼 画像」か貼り付けで1枚付けられる（投稿と同じく送る前に縮める）。画像は押すと大きく見られる。自分のメッセージの下に「取り消す」（確認あり）
 
 ### 4.10 2段階認証（F-24）
 
@@ -345,7 +350,7 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 | mutes | id, muter_id, muted_id, created_at | (muter_id, muted_id) に一意制約。どちらのユーザーを消しても一緒に消える |
 | notifications | id, recipient_id, actor_id, type（LIKE・REPLY・REPOST・FOLLOW）, post_id, created_at, read_at | (recipient_id, id)。投稿・ユーザーを消すと一緒に消える（`V9__notifications.sql`） |
 | post_hashtags | id, post_id, tag（小文字、# なし、50字まで）, created_at（投稿した時刻） | (post_id, tag) に一意制約、(tag, post_id)、(created_at)。投稿を消すと一緒に消える（`V10__hashtags.sql`。前からある投稿は Java の `V11__BackfillHashtags` で取り出す） |
-| direct_messages | id（連番）, sender_id, recipient_id, body（500字まで）, created_at, read_at | (sender_id, recipient_id, id)、(recipient_id, sender_id, id)。どちらのユーザーを消しても一緒に消える（`V12__direct_messages.sql`） |
+| direct_messages | id（連番）, sender_id, recipient_id, body（500字まで。画像だけなら空）, created_at, read_at, image_*（`V18`） | (sender_id, recipient_id, id)、(recipient_id, sender_id, id)。どちらのユーザーを消しても一緒に消える（`V12__direct_messages.sql`） |
 | recovery_codes | id, user_id, code_hash（SHA-256）, used_at | (user_id)。2段階認証のリカバリーコード。アカウントを消すと一緒に消える（`V13__two_factor.sql`） |
 | reports | id（連番）, reporter_id, target_user_id, post_id, post_body, reason, detail, created_at, resolved_at, resolution | (resolved_at, id)、(reporter_id, target_user_id)。人を消すと一緒に消える。投稿を消すと post_id だけ空になる（`V16__reports.sql`） |
 | follow_requests | id（連番）, requester_id, target_id, created_at | (requester_id, target_id) に一意制約、(target_id, id)。どちらのユーザーを消しても一緒に消える（`V17__private_accounts.sql`。users に is_private を足し、notifications.type を20字に広げた） |
@@ -388,8 +393,8 @@ API ごとの細かい形は [`openapi.yaml`](./openapi.yaml)（コードから�
 
 | 種類 | 件数・内容 | 実行 |
 | --- | --- | --- |
-| API のテスト | 222件（H2）。生存確認のログも。リクエストのログの項目、クエリ文字列を出さないこと、メールの失敗にアドレスを残さないことも。メール認証、新規登録の回数制限、IP の偽装で制限を抜けられないこと、秘密のヘッダーが無いリクエストを断ること、入力エラーより先に 401 を返すことも。API 仕様書（`docs/openapi.yaml`）がコードと合っていること、ログインが要ると書いた API が未ログインで 401 になること、AWS の設定で仕様書を開けないことも。画像付きの投稿（形式・5MB・縦横の上限・画像だけの投稿・削除で画像も消える・ログインが必要）、新着の数（自分の投稿は数えない、ホームはフォロー中の人だけ、100で止まる）も。各 API の正常系とエラー、140字・160字の境界（絵文字）、ページ送りで重複・欠落なし（投稿とリポストが混ざっても）、他人の投稿・リプライを消せない、いいねを同時に8回押しても1件、自分の投稿はリポストできない、投稿削除でリプライ・いいね・リポストも消える、検索の `%` `_` | `cd backend && mvn test` |
-| 画面のテスト | 91件（Vitest + Testing Library）。画像の添付・外す・使えない画像の理由・画像の表示と拡大、新着の目印の比べ方も。ログインの流れ（7件）、投稿欄の文字数（3件）、リポストのボタンと「○○さんがリポスト」（5件）、文字数・日時・戻り先の関数 | `cd frontend && npm test` |
+| API のテスト | 225件（H2）。生存確認のログも。リクエストのログの項目、クエリ文字列を出さないこと、メールの失敗にアドレスを残さないことも。メール認証、新規登録の回数制限、IP の偽装で制限を抜けられないこと、秘密のヘッダーが無いリクエストを断ること、入力エラーより先に 401 を返すことも。API 仕様書（`docs/openapi.yaml`）がコードと合っていること、ログインが要ると書いた API が未ログインで 401 になること、AWS の設定で仕様書を開けないことも。画像付きの投稿（形式・5MB・縦横の上限・画像だけの投稿・削除で画像も消える・ログインが必要）、新着の数（自分の投稿は数えない、ホームはフォロー中の人だけ、100で止まる）も。各 API の正常系とエラー、140字・160字の境界（絵文字）、ページ送りで重複・欠落なし（投稿とリポストが混ざっても）、他人の投稿・リプライを消せない、いいねを同時に8回押しても1件、自分の投稿はリポストできない、投稿削除でリプライ・いいね・リポストも消える、検索の `%` `_` | `cd backend && mvn test` |
+| 画面のテスト | 93件（Vitest + Testing Library）。画像の添付・外す・使えない画像の理由・画像の表示と拡大、新着の目印の比べ方も。ログインの流れ（7件）、投稿欄の文字数（3件）、リポストのボタンと「○○さんがリポスト」（5件）、文字数・日時・戻り先の関数 | `cd frontend && npm test` |
 | 結合テスト | 8シナリオ（Playwright）。本物の jar、MySQL、Chrome をつなぐ。登録からログイン、確認前の登録が見えないこと、プロフィールの変更、メールアドレスとパスワードの変更、ログアウト、2人のやりとり（投稿、検索、フォロー、いいね、リポスト、リプライ、削除）、新着のお知らせ、画像付きの投稿。確認メールはアプリのログのリンクを読む | `./e2e/run.ps1`。PR ごとに GitHub Actions でも動く |
 | MySQL での通し確認 | 36項目（2026-10-30 実施、すべて OK）。画面の URL の配信、リプライ、いいねを10回同時に押して1件、フォロー、ホーム、検索、自己紹介、アイコン、削除の連鎖、ログアウト後の 401。MySQL に外部キーの CASCADE・一意制約・インデックスがあることも確認 | 起動中のアプリに API を順に呼ぶスクリプト |
 

@@ -7,7 +7,6 @@ import com.snsapp.api.notification.Notification;
 import com.snsapp.api.notification.NotificationService;
 import com.snsapp.api.common.ApiErrors;
 import com.snsapp.api.common.ApiException;
-import com.snsapp.api.common.ImageFiles;
 import com.snsapp.api.common.OpenApiConfig;
 import com.snsapp.api.common.RateLimiter;
 import com.snsapp.api.common.TextLength;
@@ -241,35 +240,17 @@ public class PostController {
                                         HttpServletRequest httpRequest) throws IOException {
         String userId = currentUser.require(httpRequest);
         String text = body == null || body.isBlank() ? "" : bodyValue(body, "投稿");
-        if (file.isEmpty()) {
-            throw ApiException.badRequest("画像を選んでください");
-        }
-        if (file.getSize() > PostImage.MAX_BYTES) {
-            throw ApiException.payloadTooLarge("画像は5MBまでです");
-        }
-        byte[] data = file.getBytes();
-        String contentType = ImageFiles.detectType(data);
-        if (contentType == null) {
-            throw ApiException.badRequest("画像は JPEG か PNG にしてください");
-        }
-        ImageFiles.Size size = ImageFiles.readSize(data);
-        if (size == null) {
-            throw ApiException.badRequest("画像を読み込めませんでした。別の画像でお試しください");
-        }
-        if (size.width() > PostImage.MAX_SIDE || size.height() > PostImage.MAX_SIDE) {
-            throw ApiException.badRequest("画像が大きすぎます(縦・横それぞれ" + PostImage.MAX_SIDE + "ピクセルまで)");
-        }
+        UploadedImage uploaded = UploadedImage.read(file);
         // 入力の確認がすべて済んでから回数に数える(形式違いで弾かれた分は数えない)
         acquirePostSlot(userId);
         User user = findUser(userId);
 
         // 画像を先に置き、投稿を保存できなかったら画像を消す(画像の無い投稿が残らないように)
         String key = UUID.randomUUID().toString();
-        imageStorage.put(key, data, contentType);
+        imageStorage.put(key, uploaded.data(), uploaded.contentType());
         Post post;
         try {
-            post = postRepository.save(new Post(user, text,
-                    new PostImage(key, contentType, size.width(), size.height())));
+            post = postRepository.save(new Post(user, text, uploaded.toPostImage(key)));
         } catch (RuntimeException e) {
             deleteImageQuietly(key);
             throw e;

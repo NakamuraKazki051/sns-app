@@ -1,10 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError } from "../api";
 import type { DirectMessage, Me } from "../types";
-import { ConversationPage, MessagesPage, mergeMessages } from "./MessagesPage";
+import { ConversationPage, MessagesPage, mergeMessages, replaceLatest } from "./MessagesPage";
 
 const ME: Me = {
   id: "u1", email: "a@example.com", username: "alice", displayName: "アリス", iconUpdatedAt: null, bio: null, createdAt: "",
@@ -42,6 +42,14 @@ describe("mergeMessages", () => {
     const merged = mergeMessages([message("2", { mine: true }), message("10")], [message("2", { mine: true, read: true }), message("11"), message("1")]);
     expect(merged.map((m) => m.id)).toEqual(["1", "2", "10", "11"]);
     expect(merged[1].read).toBe(true);
+  });
+});
+
+describe("replaceLatest", () => {
+  it("聞き直した最初のページの範囲で、届かなかったもの(取り消されたもの)を消す。範囲より古いものは残す", () => {
+    const prev = [message("1"), message("5"), message("6"), message("7")];
+    expect(replaceLatest(prev, [message("5"), message("7"), message("8")]).map((m) => m.id)).toEqual(["1", "5", "7", "8"]);
+    expect(replaceLatest(prev, [])).toEqual([]);
   });
 });
 
@@ -100,5 +108,32 @@ describe("DM の画面(F-23)", () => {
     renderAt("/messages/alice");
     expect(screen.getByText("自分にはメッセージを送れません")).toBeTruthy();
     expect(api).not.toHaveBeenCalled();
+  });
+
+  it("自分のメッセージは取り消せ(確認あり)、画像も出す", async () => {
+    vi.mocked(api).mockImplementation(async (path, options) => {
+      if (path === "/api/users/bob") return PROFILE;
+      if (path === "/api/dm/messages/2" && options?.method === "DELETE") return undefined;
+      if (path === "/api/dm/bob") {
+        return {
+          messages: [
+            message("2", { mine: true, body: "", image: { url: "/api/dm/messages/2/image", width: 40, height: 30 } }),
+            message("1"),
+          ],
+          hasMore: false,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`想定外: ${path}`);
+    });
+    renderAt("/messages/bob");
+
+    expect(await screen.findByRole("img", { name: "送られた画像" })).toBeTruthy();
+    // 相手のメッセージには「取り消す」が無い
+    expect(screen.getAllByRole("button", { name: "取り消す" })).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "取り消す" }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "取り消す" }));
+    expect(vi.mocked(api)).toHaveBeenCalledWith("/api/dm/messages/2", { method: "DELETE" });
+    await waitFor(() => expect(screen.queryByRole("img", { name: "送られた画像" })).toBeNull());
   });
 });

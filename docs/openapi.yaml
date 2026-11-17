@@ -409,6 +409,85 @@ paths:
       summary: DM の会話一覧
       tags:
       - DM
+  /api/dm/messages/{id}:
+    delete:
+      description: 自分が送ったものだけ消せる(相手の画面からも消える)。画像も消す。他人のもの・無いものは 404
+      operationId: deleteMessage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: DM を取り消す
+      tags:
+      - DM
+  /api/dm/messages/{id}/image:
+    get:
+      description: 送った人と受け取った人だけが見られる。後から変わらないので、ブラウザに長くキャッシュさせる
+      operationId: getMessageImage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+          description: 画像
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 入力が正しくない
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: DM の画像
+      tags:
+      - DM
   /api/dm/unread-count:
     get:
       operationId: countUnreadMessages
@@ -474,7 +553,8 @@ paths:
       tags:
       - DM
     post:
-      description: 本文は500字まで(絵文字も1字と数える)。自分には送れない(400)。1人1分に20通まで
+      description: 本文は500字まで(絵文字も1字と数える)。自分には送れない(400)。1人1分に20通まで。画像を付けるときは multipart/form-data
+        で image(JPEG か PNG、5MB まで)と body(空でもよい)を送る
       operationId: sendMessage
       parameters:
       - in: path
@@ -2509,12 +2589,18 @@ components:
       properties:
         body:
           type: string
+          description: 本文。画像だけのメッセージなら空
         createdAt:
           type: string
           format: date-time
         id:
           type: string
           description: メッセージ ID(文字列)
+        image:
+          anyOf:
+          - $ref: "#/components/schemas/ImageResponse"
+          - type: "null"
+          description: 画像。無ければ null
         mine:
           type: boolean
           description: 自分が送ったものか

@@ -3,7 +3,10 @@ import { Link, useOutletContext, useParams } from "react-router";
 import { api, ApiError, errorMessage } from "../api";
 import { useMe } from "../auth";
 import { Avatar } from "../components/Avatar";
+import { AuthImage } from "../components/AuthImage";
 import { Composer } from "../components/Composer";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ImageViewer } from "../components/ImageViewer";
 import { LoadFailed } from "../components/LoadFailed";
 import { useFeedback } from "../feedback";
 import { DM_MAX, fullTime, relativeTime } from "../text";
@@ -26,6 +29,18 @@ export function mergeMessages(a: DirectMessage[], b: DirectMessage[]): DirectMes
     const diff = BigInt(x.id) - BigInt(y.id);
     return diff < 0n ? -1 : diff > 0n ? 1 : 0;
   });
+}
+
+/**
+ * 最初のページを聞き直したときに合わせる。ページの範囲(一番古いもの以降)にあったのに届かなかったものは、
+ * 送った人が取り消したので消す。範囲より古いもの(「前のメッセージを見る」で読んだ分)はそのまま
+ */
+export function replaceLatest(prev: DirectMessage[], page: DirectMessage[]): DirectMessage[] {
+  const oldest = page[0];
+  // 1件も無ければ、全部取り消された
+  if (!oldest) return [];
+  const kept = prev.filter((m) => BigInt(m.id) < BigInt(oldest.id));
+  return mergeMessages(kept, page);
 }
 
 /** DM の会話一覧(F-23)。最後のメッセージが新しい会話から */
@@ -114,6 +129,9 @@ function ConversationContent({ username }: { username: string }) {
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [viewing, setViewing] = useState<DirectMessage | null>(null);
+  const [deleting, setDeleting] = useState<DirectMessage | null>(null);
+  const closeViewer = useCallback(() => setViewing(null), []);
   const bottomRef = useRef<HTMLDivElement>(null);
   // 下まで送るのは、開いたとき・自分が送ったとき・下の方を見ているときに届いたときだけ(古いものを読んでいる邪魔をしない)
   const stickToBottom = useRef(true);
@@ -162,7 +180,7 @@ function ConversationContent({ username }: { username: string }) {
         // 相手から新しく届いていたら、サーバーで既読になったので、メニューの未読の数も聞き直す
         const newest = page.items.at(-1);
         if (newest && newest.id !== lastIdRef.current && !newest.mine) onMessagesRead?.();
-        setMessages((prev) => mergeMessages(prev, page.items));
+        setMessages((prev) => replaceLatest(prev, page.items));
       } catch {
         // 次の回にまた確かめる
       } finally {
@@ -206,14 +224,32 @@ function ConversationContent({ username }: { username: string }) {
     }
   }
 
-  async function send(text: string) {
+  async function send(text: string, image: Blob | null) {
     try {
-      const sent = await api<DirectMessage>(`/api/dm/${username}`, { method: "POST", body: { body: text } });
+      let sent: DirectMessage;
+      if (image) {
+        const form = new FormData();
+        form.append("body", text);
+        form.append("image", image, image.type === "image/png" ? "image.png" : "image.jpg");
+        sent = await api<DirectMessage>(`/api/dm/${username}`, { method: "POST", form });
+      } else {
+        sent = await api<DirectMessage>(`/api/dm/${username}`, { method: "POST", body: { body: text } });
+      }
       stickToBottom.current = true;
       setMessages((prev) => mergeMessages(prev, [sent]));
     } catch (e) {
       showError(errorMessage(e));
       throw e;
+    }
+  }
+
+  async function remove(message: DirectMessage) {
+    setDeleting(null);
+    try {
+      await api<void>(`/api/dm/messages/${message.id}`, { method: "DELETE" });
+      setMessages((prev) => prev.filter((m) => m.id !== message.id));
+    } catch (e) {
+      showError(errorMessage(e));
     }
   }
 
@@ -246,16 +282,47 @@ function ConversationContent({ username }: { username: string }) {
       <ol className="dm-list" aria-label={`${partner.displayName}さんとのメッセージ`}>
         {messages.map((m) => (
           <li key={m.id} className={m.mine ? "dm mine" : "dm"}>
-            <p className="dm-bubble">{m.body}</p>
+            {m.image && (
+              <button type="button" className="dm-image" aria-label="画像を大きく見る" onClick={() => setViewing(m)}>
+                <AuthImage
+                  src={m.image.url}
+                  width={m.image.width}
+                  height={m.image.height}
+                  style={{ aspectRatio: `${m.image.width} / ${m.image.height}` }}
+                  alt={m.body === "" ? "送られた画像" : ""}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </button>
+            )}
+            {m.body !== "" && <p className="dm-bubble">{m.body}</p>}
             <span className="sub" title={fullTime(m.createdAt)}>
               {relativeTime(m.createdAt)}
               {m === lastMine && (m.read ? " · 既読" : " · 送信済み")}
+              {m.mine && (
+                <>
+                  {" · "}
+                  <button type="button" className="link-button dm-delete" onClick={() => setDeleting(m)}>
+                    取り消す
+                  </button>
+                </>
+              )}
             </span>
           </li>
         ))}
       </ol>
       <div ref={bottomRef} />
-      <Composer placeholder="メッセージを入力" submitLabel="送信" max={DM_MAX} onSubmit={(text) => send(text)} />
+      <Composer placeholder="メッセージを入力" submitLabel="送信" max={DM_MAX} allowImage onSubmit={send} />
+      {viewing?.image && <ImageViewer src={viewing.image.url} alt={viewing.body || "送られた画像"} onClose={closeViewer} />}
+      {deleting && (
+        <ConfirmDialog
+          title="メッセージを取り消しますか？"
+          message="相手の画面からも消えます。元に戻せません。"
+          confirmLabel="取り消す"
+          onConfirm={() => remove(deleting)}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </>
   );
 }
