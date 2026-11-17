@@ -255,6 +255,18 @@ class AuthControllerTest extends ApiTestSupport {
     }
 
     @Test
+    void reservedUsernamesCannotBeRegisteredInAnyCase() throws Exception {
+        for (String reserved : List.of("admin", "Admin", "SUPPORT", "me", "settings", "raiseline", "null")) {
+            mockMvc.perform(json(post("/api/auth/register"), registerParams(reserved)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("このユーザー名は使えません: @" + reserved));
+        }
+        // 予約された名前を含むだけなら使える
+        mockMvc.perform(json(post("/api/auth/register"), registerParams("admin_fan")))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void displayNameIsRequiredAndUpTo50Characters() throws Exception {
         Map<String, Object> blank = registerParams(newUsername());
         blank.put("displayName", "   ");

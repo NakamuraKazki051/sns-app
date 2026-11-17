@@ -9,6 +9,7 @@ import com.snsapp.api.common.ClientIp;
 import com.snsapp.api.common.OpenApiConfig;
 import com.snsapp.api.common.PublicApi;
 import com.snsapp.api.common.RateLimiter;
+import com.snsapp.api.user.ReservedUsernames;
 import com.snsapp.api.user.User;
 import com.snsapp.api.user.UserDtos.RegisterRequest;
 import com.snsapp.api.user.UserDtos.UserResponse;
@@ -91,6 +92,9 @@ public class AuthController {
         // 使用済みのメールアドレスも数える(数えないと、登録の有無を際限なく調べられる)
         if (!rateLimiter.tryAcquire("register:" + clientIp.of(httpRequest), registerPerHour, REGISTER_WINDOW)) {
             throw ApiException.tooManyRequests("登録の回数が多すぎます。1時間ほど待ってからもう一度お試しください");
+        }
+        if (ReservedUsernames.contains(request.username())) {
+            throw ApiException.badRequest("このユーザー名は使えません: @" + request.username());
         }
         emailVerification.deleteExpiredRegistrations();
         String email = request.email().trim().toLowerCase();
