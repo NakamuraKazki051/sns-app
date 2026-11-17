@@ -584,6 +584,102 @@ paths:
       summary: ブロック中の人
       tags:
       - ユーザー
+  /api/me/follow-requests:
+    get:
+      description: 新しい順に200人まで。ブロックしている・されている人のものは出さない
+      operationId: listFollowRequests
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserSummary"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 届いているフォローのリクエスト
+      tags:
+      - ユーザー
+  /api/me/follow-requests/count:
+    get:
+      operationId: countFollowRequests
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestCount"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+      summary: 届いているフォローのリクエストの数
+      tags:
+      - ユーザー
+  /api/me/follow-requests/{username}:
+    delete:
+      description: リクエストを消す。相手には知らせない(もう一度リクエストできる)。リクエストが無ければ 404
+      operationId: rejectFollowRequest
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: フォローのリクエストを拒否する
+      tags:
+      - ユーザー
+    post:
+      description: 相手が自分をフォローした状態になり、自分の投稿が見えるようになる。リクエストが無ければ 404
+      operationId: approveFollowRequest
+      parameters:
+      - in: path
+        name: username
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: ログインしていない(ログインの API では、メールアドレスかパスワードが違う)
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: 見つからない(他の人の投稿やリプライを消そうとしたときも)
+      summary: フォローのリクエストを承認する
+      tags:
+      - ユーザー
   /api/me/icon:
     delete:
       description: 表示名の頭文字の丸に戻る
@@ -670,7 +766,8 @@ paths:
       - ユーザー
   /api/me/profile:
     patch:
-      description: 送った項目だけ変える。表示名は50字まで。自己紹介は160字まで(絵文字も1字と数える)で、空にすると消える
+      description: 送った項目だけ変える。表示名は50字まで。自己紹介は160字まで(絵文字も1字と数える)で、空にすると消える。privateAccount
+        で鍵アカウントにする・外す(外すと、届いているフォローのリクエストはすべて承認する)
       operationId: updateProfile
       requestBody:
         content:
@@ -1339,7 +1436,7 @@ paths:
       tags:
       - リポスト
     post:
-      description: リポスト済みなら何も変わらない。自分の投稿はリポストできない(400)
+      description: リポスト済みなら何も変わらない。自分の投稿と鍵アカウントの投稿はリポストできない(400)
       operationId: repost
       parameters:
       - in: path
@@ -1932,7 +2029,7 @@ paths:
       - ユーザー
   /api/users/{username}/follow:
     delete:
-      description: フォローしていなければ何も変わらない
+      description: フォローしていなければ何も変わらない。鍵アカウントへの承認待ちのリクエストも取り下げる
       operationId: unfollow
       parameters:
       - in: path
@@ -1963,7 +2060,8 @@ paths:
       tags:
       - ユーザー
     post:
-      description: フォロー済みなら何も変わらない。自分はフォローできない(400)
+      description: "フォロー済みなら何も変わらない。自分はフォローできない(400)。鍵アカウントなら、フォローせずにリクエストを送る(requested:\
+        \ true)。承認されるとフォローになる"
       operationId: follow
       parameters:
       - in: path
@@ -2329,6 +2427,9 @@ components:
           format: int64
         following:
           type: boolean
+        requested:
+          type: boolean
+          description: 鍵アカウントへのリクエストを送って承認を待っているか(F-26)
     ForgotPasswordRequest:
       type: object
       properties:
@@ -2551,11 +2652,17 @@ components:
         blocking:
           type: boolean
           description: 自分がこの人をブロックしているか(F-20)
+        canViewPosts:
+          type: boolean
+          description: 自分がこの人の投稿・フォロー一覧を見られるか。鍵アカウントで、フォローしていなければ false
         createdAt:
           type: string
           format: date-time
         displayName:
           type: string
+        followRequested:
+          type: boolean
+          description: 自分がフォローのリクエストを送って、承認を待っているか(F-26)
         followedByMe:
           type: boolean
         followersCount:
@@ -2578,6 +2685,9 @@ components:
         postsCount:
           type: integer
           format: int64
+        privateAccount:
+          type: boolean
+          description: 鍵アカウントか(F-26)
         username:
           type: string
     ProfileUpdateRequest:
@@ -2590,6 +2700,9 @@ components:
           type: string
           maxLength: 50
           minLength: 0
+        privateAccount:
+          type: boolean
+          description: 鍵アカウントにするか(F-26)。外すと、届いているフォローのリクエストはすべて承認する
     PublicUser:
       type: object
       properties:
@@ -2709,6 +2822,12 @@ components:
         reposted:
           type: boolean
         repostsCount:
+          type: integer
+          format: int64
+    RequestCount:
+      type: object
+      properties:
+        count:
           type: integer
           format: int64
     ResendVerificationRequest:
@@ -2851,6 +2970,9 @@ components:
           description: アイコンを変えた時刻。アイコンが無ければ null
         id:
           type: string
+        privateAccount:
+          type: boolean
+          description: 鍵アカウントか(F-26)
         username:
           type: string
     UserSummary:

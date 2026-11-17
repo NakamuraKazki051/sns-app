@@ -69,11 +69,17 @@ function UserPageContent({ username }: { username: string }) {
     if (!profile || following) return;
     setFollowing(true);
     try {
-      const result = await api<{ following: boolean; followersCount: number }>(
+      // フォロー中・リクエスト中なら取り消す(鍵アカウントへのフォローはリクエストになる。F-26)
+      const result = await api<{ following: boolean; requested: boolean; followersCount: number }>(
         `/api/users/${profile.username}/follow`,
-        { method: profile.followedByMe ? "DELETE" : "POST" },
+        { method: profile.followedByMe || profile.followRequested ? "DELETE" : "POST" },
       );
-      setProfile({ ...profile, followedByMe: result.following, followersCount: result.followersCount });
+      setProfile({
+        ...profile,
+        followedByMe: result.following,
+        followRequested: result.requested,
+        followersCount: result.followersCount,
+      });
     } catch (e) {
       showError(errorMessage(e));
     } finally {
@@ -126,12 +132,13 @@ function UserPageContent({ username }: { username: string }) {
               {!profile.blocking && (
                 <button
                   type="button"
-                  className={profile.followedByMe ? "button following" : "button primary"}
+                  className={profile.followedByMe || profile.followRequested ? "button following" : "button primary"}
                   disabled={following}
                   onClick={toggleFollow}
-                  aria-pressed={profile.followedByMe}
+                  aria-pressed={profile.followedByMe || profile.followRequested}
+                  title={profile.followRequested ? "押すとリクエストを取り消します" : undefined}
                 >
-                  {profile.followedByMe ? "フォロー中" : "フォローする"}
+                  {profile.followedByMe ? "フォロー中" : profile.followRequested ? "リクエスト済み" : "フォローする"}
                 </button>
               )}
               {!profile.blocking && (
@@ -167,7 +174,15 @@ function UserPageContent({ username }: { username: string }) {
             onCancel={() => setConfirmingBlock(false)}
           />
         )}
-        <h2>{profile.displayName}</h2>
+        <h2>
+          {profile.displayName}
+          {profile.privateAccount && (
+            <span className="lock" role="img" aria-label="鍵アカウント" title="鍵アカウント">
+              {" "}
+              🔒
+            </span>
+          )}
+        </h2>
         <p className="muted">@{profile.username}</p>
         {profile.bio && <p className="profile-bio">{profile.bio}</p>}
         <p className="profile-stats">
@@ -182,6 +197,14 @@ function UserPageContent({ username }: { username: string }) {
           </Link>
         </p>
       </div>
+      {!profile.canViewPosts && !profile.blocking ? (
+        <div className="card empty private-notice">
+          <p>
+            <strong>🔒 このアカウントの投稿は非公開です</strong>
+          </p>
+          <p className="muted">フォローのリクエストが承認されると、投稿やフォロー・フォロワーの一覧が見られます。</p>
+        </div>
+      ) : (
       <PostList
         paged={posts}
         emptyMessage={profile.blocking ? "ブロック中のため、投稿は表示しません" : "まだ投稿がありません"}
@@ -190,6 +213,7 @@ function UserPageContent({ username }: { username: string }) {
           if (isMe) setProfile((p) => (p ? { ...p, postsCount: Math.max(0, p.postsCount - 1) } : p));
         }}
       />
+      )}
     </>
   );
 }

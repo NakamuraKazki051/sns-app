@@ -26,6 +26,11 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query("delete from User u where u.emailVerifiedAt is null and u.createdAt < :before")
     void deleteUnverifiedBefore(@Param("before") Instant before);
 
+    /** 鍵アカウント(F-26)のうち、viewer がフォローしていない人(viewer 本人は除く)。この人たちの投稿は viewer に見えない */
+    @Query("select u.id from User u where u.privateAccount = true and u.id <> :viewer"
+            + " and u.id not in (select f.followee.id from Follow f where f.follower.id = :viewer)")
+    List<String> findPrivateNotFollowedBy(@Param("viewer") String viewer);
+
     /**
      * ユーザー名か表示名の一部で探す。ユーザー名順に並べ、after(ユーザー名)より後ろから読む。
      * pattern は %〜% で囲み、% と _ と \ をエスケープ済みのもの。メールの確認が済んでいない登録は出さない

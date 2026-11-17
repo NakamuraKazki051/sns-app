@@ -6,6 +6,7 @@ import com.snsapp.api.common.ApiException;
 import com.snsapp.api.common.ImageFiles;
 import com.snsapp.api.common.OpenApiConfig;
 import com.snsapp.api.common.TextLength;
+import com.snsapp.api.follow.FollowRequestController;
 import com.snsapp.api.user.UserDtos.ProfileUpdateRequest;
 import com.snsapp.api.user.UserDtos.UserResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,15 +41,19 @@ public class MeController {
     private final UserRepository userRepository;
     private final UserIconRepository userIconRepository;
     private final CurrentUser currentUser;
+    private final FollowRequestController.Approver followRequests;
 
-    public MeController(UserRepository userRepository, UserIconRepository userIconRepository, CurrentUser currentUser) {
+    public MeController(UserRepository userRepository, UserIconRepository userIconRepository, CurrentUser currentUser,
+                        FollowRequestController.Approver followRequests) {
+        this.followRequests = followRequests;
         this.userRepository = userRepository;
         this.userIconRepository = userIconRepository;
         this.currentUser = currentUser;
     }
 
     @Operation(operationId = "updateProfile", summary = "表示名と自己紹介を変える",
-            description = "送った項目だけ変える。表示名は50字まで。自己紹介は160字まで(絵文字も1字と数える)で、空にすると消える")
+            description = "送った項目だけ変える。表示名は50字まで。自己紹介は160字まで(絵文字も1字と数える)で、空にすると消える。"
+                    + "privateAccount で鍵アカウントにする・外す(外すと、届いているフォローのリクエストはすべて承認する)")
     @ApiErrors(400)
     @PatchMapping("/profile")
     @Transactional
@@ -68,6 +73,13 @@ public class MeController {
                 throw ApiException.badRequest("自己紹介は" + User.BIO_MAX + "文字以内で入力してください");
             }
             user.setBio(bio.isEmpty() ? null : bio);
+        }
+        if (request.privateAccount() != null && request.privateAccount() != user.isPrivateAccount()) {
+            user.setPrivateAccount(request.privateAccount());
+            // 鍵を外したら、待たせているリクエストはすべて承認する(F-26)
+            if (!request.privateAccount()) {
+                followRequests.approveAll(user.getId());
+            }
         }
         return UserResponse.from(user);
     }

@@ -44,7 +44,7 @@ public class RepostController {
 
     /** リポストする。もうリポスト済みならそのまま(何度押しても1回分)。自分の投稿はリポストできない */
     @Operation(operationId = "repost", summary = "リポストする",
-            description = "リポスト済みなら何も変わらない。自分の投稿はリポストできない(400)")
+            description = "リポスト済みなら何も変わらない。自分の投稿と鍵アカウントの投稿はリポストできない(400)")
     @ApiErrors({400, 404})
     @PostMapping("/posts/{id}/repost")
     public RepostResponse repost(@PathVariable Long id, HttpServletRequest httpRequest) {
@@ -52,6 +52,10 @@ public class RepostController {
         Post post = postController.findPost(id, userId);
         if (post.getUser().getId().equals(userId)) {
             throw ApiException.badRequest("自分の投稿はリポストできません");
+        }
+        // 鍵アカウントの投稿を広めると、フォロワー以外にも見えてしまう(F-26)
+        if (post.getUser().isPrivateAccount()) {
+            throw ApiException.badRequest("鍵アカウントの投稿はリポストできません");
         }
         if (!repostRepository.existsByUserIdAndPostId(userId, id)) {
             try {

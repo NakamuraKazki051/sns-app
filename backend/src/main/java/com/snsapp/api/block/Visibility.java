@@ -1,5 +1,8 @@
 package com.snsapp.api.block;
 
+import com.snsapp.api.follow.FollowRepository;
+import com.snsapp.api.user.User;
+import com.snsapp.api.user.UserRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -17,10 +20,14 @@ public class Visibility {
 
     private final BlockRepository blocks;
     private final MuteRepository mutes;
+    private final UserRepository users;
+    private final FollowRepository follows;
 
-    public Visibility(BlockRepository blocks, MuteRepository mutes) {
+    public Visibility(BlockRepository blocks, MuteRepository mutes, UserRepository users, FollowRepository follows) {
         this.blocks = blocks;
         this.mutes = mutes;
+        this.users = users;
+        this.follows = follows;
     }
 
     /** ブロックしている人・されている人。投稿・リプライ・プロフィール・検索・フォロー一覧から除く */
@@ -35,6 +42,22 @@ public class Visibility {
         Set<String> ids = blockRelated(viewerId);
         ids.addAll(mutes.findMutedIds(viewerId));
         return ids;
+    }
+
+    /**
+     * hidden に、フォローしていない鍵アカウント(F-26)を足したもの。投稿・リプライ・リポストの一覧から除く。
+     * 通知は除かない(鍵アカウントの人からのいいね・フォローも知らせる)
+     */
+    public Set<String> postHidden(String viewerId) {
+        Set<String> ids = hidden(viewerId);
+        ids.addAll(users.findPrivateNotFollowedBy(viewerId));
+        return ids;
+    }
+
+    /** viewer がこの人の投稿を見られるか。本人・鍵アカウントでない・承認されたフォロワー(F-26) */
+    public boolean canSeePostsOf(String viewerId, User owner) {
+        return owner.getId().equals(viewerId) || !owner.isPrivateAccount()
+                || follows.existsByFollowerIdAndFolloweeId(viewerId, owner.getId());
     }
 
     /** どちらかがどちらかをブロックしている */

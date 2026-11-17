@@ -13,6 +13,8 @@ import com.snsapp.api.common.OpenApiConfig;
 import com.snsapp.api.common.RateLimiter;
 import com.snsapp.api.follow.Follow;
 import com.snsapp.api.follow.FollowRepository;
+import com.snsapp.api.follow.FollowRequest;
+import com.snsapp.api.follow.FollowRequestRepository;
 import com.snsapp.api.post.PostDtos.PageResponse;
 import com.snsapp.api.post.PostRepository;
 import com.snsapp.api.post.PostViews;
@@ -83,14 +85,16 @@ public class UserController {
     private final BlockRepository blockRepository;
     private final MuteRepository muteRepository;
     private final NotificationService notifications;
+    private final FollowRequestRepository followRequests;
 
     public UserController(UserRepository userRepository, UserIconRepository userIconRepository,
                           PostRepository postRepository, FollowRepository followRepository, PostViews postViews,
                           PasswordEncoder passwordEncoder, CurrentUser currentUser,
                           EmailVerificationService emailVerification, RateLimiter rateLimiter,
                           Visibility visibility, BlockRepository blockRepository, MuteRepository muteRepository,
-                          NotificationService notifications) {
+                          NotificationService notifications, FollowRequestRepository followRequests) {
         this.notifications = notifications;
+        this.followRequests = followRequests;
         this.visibility = visibility;
         this.blockRepository = blockRepository;
         this.muteRepository = muteRepository;
@@ -142,7 +146,9 @@ public class UserController {
                 followRepository.countByFollowerId(user.getId()), followRepository.countByFolloweeId(user.getId()),
                 followRepository.existsByFollowerIdAndFolloweeId(viewerId, user.getId()), user.getCreatedAt(),
                 blockRepository.existsByBlockerIdAndBlockedId(viewerId, user.getId()),
-                muteRepository.existsByMuterIdAndMutedId(viewerId, user.getId()));
+                muteRepository.existsByMuterIdAndMutedId(viewerId, user.getId()),
+                user.isPrivateAccount(), followRequests.existsByRequesterIdAndTargetId(viewerId, user.getId()),
+                visibility.canSeePostsOf(viewerId, user));
     }
 
     /** その人の投稿とリポストの一覧。before には前のページの nextCursor を渡す */
@@ -157,7 +163,9 @@ public class UserController {
         String viewerId = currentUser.require(httpRequest);
         User user = findUser(username, viewerId);
         // 自分がブロックしている人のページは開けるが、投稿は出さない(F-20)
-        if (blockRepository.existsByBlockerIdAndBlockedId(viewerId, user.getId())) {
+        // 鍵アカウントは、承認されたフォロワーにだけ見せる(F-26)
+        if (blockRepository.existsByBlockerIdAndBlockedId(viewerId, user.getId())
+                || !visibility.canSeePostsOf(viewerId, user)) {
             return new PageResponse(List.of(), false, null);
         }
         return postViews.feedOf(List.of(user.getId()), before, viewerId);
@@ -165,7 +173,8 @@ public class UserController {
 
     /** フォローする。もうフォロー済みならそのまま(何度押しても1回分) */
     @Operation(operationId = "follow", summary = "フォローする",
-            description = "フォロー済みなら何も変わらない。自分はフォローできない(400)")
+            description = "フォロー済みなら何も変わらない。自分はフォローできない(400)。"
+                    + "鍵アカウントなら、フォローせずにリクエストを送る(requested: true)。承認されるとフォローになる")
     @ApiErrors({400, 404})
     @PostMapping("/{username}/follow")
     public FollowResponse follow(@PathVariable String username, HttpServletRequest httpRequest) {
@@ -177,7 +186,20 @@ public class UserController {
         if (blockRepository.existsByBlockerIdAndBlockedId(viewerId, user.getId())) {
             throw ApiException.badRequest("ブロック中のユーザーはフォローできません。先にブロックを解除してください");
         }
-        if (!followRepository.existsByFollowerIdAndFolloweeId(viewerId, user.getId())) {
+        boolean following = followRepository.existsByFollowerIdAndFolloweeId(viewerId, user.getId());
+        // 鍵アカウント(F-26)は、リクエストを送って承認を待つ
+        if (!following && user.isPrivateAccount()) {
+            if (!followRequests.existsByRequesterIdAndTargetId(viewerId, user.getId())) {
+                try {
+                    followRequests.saveAndFlush(new FollowRequest(userRepository.getReferenceById(viewerId), user.getId()));
+                    notifications.followRequested(viewerId, user.getId());
+                } catch (DataIntegrityViolationException e) {
+                    // 連打で同じリクエストが先に入った。送り済みとして扱う
+                }
+            }
+            return new FollowResponse(false, true, followRepository.countByFolloweeId(user.getId()));
+        }
+        if (!following) {
             try {
                 followRepository.saveAndFlush(new Follow(userRepository.getReferenceById(viewerId), user));
                 notifications.followed(viewerId, user.getId());
@@ -185,12 +207,12 @@ public class UserController {
                 // 上の確認と保存の間に同じフォローが入った(連打)。一意制約で弾かれたので、フォロー済みとして扱う
             }
         }
-        return new FollowResponse(true, followRepository.countByFolloweeId(user.getId()));
+        return new FollowResponse(true, false, followRepository.countByFolloweeId(user.getId()));
     }
 
     /** フォローを解除する。フォローしていなければそのまま */
     @Operation(operationId = "unfollow", summary = "フォローを解除する",
-            description = "フォローしていなければ何も変わらない")
+            description = "フォローしていなければ何も変わらない。鍵アカウントへの承認待ちのリクエストも取り下げる")
     @ApiErrors(404)
     @DeleteMapping("/{username}/follow")
     public FollowResponse unfollow(@PathVariable String username, HttpServletRequest httpRequest) {
@@ -198,7 +220,10 @@ public class UserController {
         User user = findUser(username, viewerId);
         followRepository.deleteByFollowerIdAndFolloweeId(viewerId, user.getId());
         notifications.retract(Notification.Type.FOLLOW, viewerId, user.getId(), null);
-        return new FollowResponse(false, followRepository.countByFolloweeId(user.getId()));
+        // 承認待ちのリクエストも取り下げる(F-26)
+        followRequests.deleteByRequesterIdAndTargetId(viewerId, user.getId());
+        notifications.retract(Notification.Type.FOLLOW_REQUEST, viewerId, user.getId(), null);
+        return new FollowResponse(false, false, followRepository.countByFolloweeId(user.getId()));
     }
 
     /** フォロー中の一覧(新しくフォローした順)。before には前のページの nextCursor を渡す */
@@ -211,6 +236,9 @@ public class UserController {
                               HttpServletRequest httpRequest) {
         String viewer = currentUser.require(httpRequest);
         User user = findUser(username, viewer);
+        if (!visibility.canSeePostsOf(viewer, user)) {
+            return new UserPage(List.of(), null);
+        }
         Set<String> hidden = visibility.blockRelated(viewer);
         Limit limit = Limit.of(PAGE_SIZE + 1);
         List<Follow> fetched = before == null
@@ -229,6 +257,9 @@ public class UserController {
                               HttpServletRequest httpRequest) {
         String viewer = currentUser.require(httpRequest);
         User user = findUser(username, viewer);
+        if (!visibility.canSeePostsOf(viewer, user)) {
+            return new UserPage(List.of(), null);
+        }
         Set<String> hidden = visibility.blockRelated(viewer);
         Limit limit = Limit.of(PAGE_SIZE + 1);
         List<Follow> fetched = before == null

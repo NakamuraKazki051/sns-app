@@ -58,6 +58,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -122,8 +123,8 @@ public class PostController {
             @RequestParam(required = false) Long before, HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
         Limit limit = Limit.of(PAGE_SIZE + 1);
-        // ブロック・ミュートしている人の投稿は出さない(F-20)
-        Set<String> hidden = visibility.hidden(userId);
+        // ブロック・ミュートしている人と、フォローしていない鍵アカウント(F-26)の投稿は出さない(F-20)
+        Set<String> hidden = visibility.postHidden(userId);
         return postViews.page(before == null
                 ? postRepository.findByUserIdNotInOrderByIdDesc(hidden, limit)
                 : postRepository.findByUserIdNotInAndIdLessThanOrderByIdDesc(hidden, before, limit), userId);
@@ -156,7 +157,7 @@ public class PostController {
             @Parameter(description = "画面に出ている一番新しい投稿の ID") @RequestParam long after,
             HttpServletRequest httpRequest) {
         String userId = currentUser.require(httpRequest);
-        Set<String> excluded = visibility.hidden(userId);
+        Set<String> excluded = visibility.postHidden(userId);
         excluded.add(userId);
         return newPostsOf(postRepository.findByIdGreaterThanAndUserIdNotInOrderByIdDesc(
                 after, excluded, Limit.of(NEW_POSTS_MAX)));
@@ -286,8 +287,9 @@ public class PostController {
     @ApiErrors({400, 404})
     @GetMapping("/posts/{id}/image")
     public ResponseEntity<byte[]> image(@PathVariable Long id, HttpServletRequest httpRequest) throws IOException {
-        currentUser.require(httpRequest);
-        PostImage image = postRepository.findById(id).map(Post::getImage)
+        String userId = currentUser.require(httpRequest);
+        // 投稿が見えない人(ブロック・鍵アカウント)には、画像も見せない
+        PostImage image = Optional.ofNullable(findPost(id, userId).getImage())
                 .orElseThrow(() -> ApiException.notFound("画像が見つかりません: " + id));
         byte[] data = imageStorage.get(image.key());
         if (data == null) {
@@ -375,10 +377,14 @@ public class PostController {
         return new LikeResponse(false, likeRepository.countByPostId(id));
     }
 
-    /** 見る人から見える投稿。ブロックしている・されている人の投稿は、無いのと同じく 404(F-20) */
+    /**
+     * 見る人から見える投稿。ブロックしている・されている人の投稿(F-20)と、
+     * フォローしていない鍵アカウントの投稿(F-26)は、無いのと同じく 404
+     */
     public Post findPost(Long id, String viewerId) {
         return postRepository.findWithUserById(id)
                 .filter(post -> !visibility.blockedBetween(viewerId, post.getUser().getId()))
+                .filter(post -> visibility.canSeePostsOf(viewerId, post.getUser()))
                 .orElseThrow(() -> ApiException.notFound("投稿が見つかりません: " + id));
     }
 

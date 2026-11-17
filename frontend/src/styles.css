@@ -458,3 +458,8 @@ small.over { color: var(--danger); font-weight: 700; }
 .admin-report:last-child { border-bottom: none; }
 .admin-report blockquote { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--border); white-space: pre-wrap; }
 .admin-report .modal-actions { margin-top: 8px; justify-content: flex-start; }
+
+/* 鍵アカウント(F-26) */
+.checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.request-buttons { display: flex; gap: 6px; }
+.private-notice { text-align: center; padding: 32px 16px; }

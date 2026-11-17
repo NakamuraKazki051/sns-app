@@ -12,6 +12,7 @@ const ACTIONS: Record<Notification["type"], string> = {
   REPLY: "さんがあなたの投稿にリプライしました",
   REPOST: "さんがあなたの投稿をリポストしました",
   FOLLOW: "さんがあなたをフォローしました",
+  FOLLOW_REQUEST: "さんからフォローのリクエストが届きました",
 };
 
 /** Layout が渡す。既読にしたら、メニューの未読の数を消す */
@@ -61,6 +62,11 @@ export function NotificationsPage() {
               {n.post && (
                 <Link to={`/posts/${n.post.id}`} className="notification-post">
                   {n.post.body || "(画像の投稿)"}
+                </Link>
+              )}
+              {n.type === "FOLLOW_REQUEST" && (
+                <Link to="/settings#follow-requests" className="notification-post">
+                  設定で承認・拒否する
                 </Link>
               )}
             </div>
