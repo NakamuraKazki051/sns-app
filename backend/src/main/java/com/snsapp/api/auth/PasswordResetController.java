@@ -36,9 +36,11 @@ public class PasswordResetController {
     private final RateLimiter rateLimiter;
     private final ClientIp clientIp;
     private final int perIpPerHour;
+    private final BackgroundMail backgroundMail;
 
     public PasswordResetController(PasswordResetService resets, RateLimiter rateLimiter, ClientIp clientIp,
-                                   @Value("${app.register.per-hour}") int perIpPerHour) {
+                                   @Value("${app.register.per-hour}") int perIpPerHour, BackgroundMail backgroundMail) {
+        this.backgroundMail = backgroundMail;
         this.resets = resets;
         this.rateLimiter = rateLimiter;
         this.clientIp = clientIp;
@@ -46,10 +48,11 @@ public class PasswordResetController {
     }
 
     @Operation(operationId = "forgotPassword", summary = "パスワード再設定のメールを送る",
-            description = "登録の有無が分からないよう、送らなかったときも 204 を返す。"
+            description = "登録の有無が分からないよう、送らなかったとき・送れなかったときも 204 を返す"
+                    + "(メールは応答を返したあとに送るので、応答の速さも変わらない)。"
                     + "リンクは1時間有効。1つのアドレスにつき1時間に3回まで")
     @PublicApi
-    @ApiErrors({400, 429, 503})
+    @ApiErrors({400, 429})
     @PostMapping("/forgot-password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void forgotPassword(@Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
@@ -58,7 +61,7 @@ public class PasswordResetController {
                 || !rateLimiter.tryAcquire("forgot-ip:" + clientIp.of(httpRequest), perIpPerHour, REQUEST_WINDOW)) {
             throw ApiException.tooManyRequests("送信の回数が多すぎます。1時間ほど待ってからもう一度お試しください");
         }
-        resets.request(email);
+        backgroundMail.run(() -> resets.request(email));
     }
 
     @Operation(operationId = "resetPassword", summary = "新しいパスワードを決める",

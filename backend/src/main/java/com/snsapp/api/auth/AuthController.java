@@ -60,6 +60,7 @@ public class AuthController {
     private final EmailVerificationService emailVerification;
     private final int registerPerHour;
     private final TwoFactorService twoFactor;
+    private final BackgroundMail backgroundMail;
 
     /** ログインで、パスワードは合ったが認証アプリのコードが要るとき(ApiError.code) */
     public static final String TWO_FACTOR_REQUIRED = "TWO_FACTOR_REQUIRED";
@@ -69,7 +70,9 @@ public class AuthController {
 
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, CurrentUser currentUser,
                           RateLimiter rateLimiter, ClientIp clientIp, EmailVerificationService emailVerification,
-                          @Value("${app.register.per-hour}") int registerPerHour, TwoFactorService twoFactor) {
+                          @Value("${app.register.per-hour}") int registerPerHour, TwoFactorService twoFactor,
+                          BackgroundMail backgroundMail) {
+        this.backgroundMail = backgroundMail;
         this.twoFactor = twoFactor;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -150,13 +153,11 @@ public class AuthController {
                 || !rateLimiter.tryAcquire("resend-ip:" + clientIp.of(httpRequest), registerPerHour, RESEND_WINDOW)) {
             throw ApiException.tooManyRequests("再送の回数が多すぎます。1時間ほど待ってからもう一度お試しください");
         }
-        userRepository.findByEmail(email).filter(user -> !user.isEmailVerified()).ifPresent(user -> {
-            try {
-                emailVerification.send(user, email);
-            } catch (ApiException e) {
-                // ここでエラーを返すと、未確認の登録があると分かってしまう(ログには残っている)
-            }
-        });
+        // 探すのも送るのも応答のあと。その場で送ると、未確認の登録があるときだけ応答が遅くなり、登録の有無が分かってしまう。
+        // 送れなかったことも伝えない(伝えると、未確認の登録があると分かる)
+        backgroundMail.run(() -> userRepository.findByEmail(email)
+                .filter(user -> !user.isEmailVerified())
+                .ifPresent(user -> emailVerification.send(user, email)));
     }
 
     @Operation(operationId = "login", summary = "ログイン",

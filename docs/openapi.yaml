@@ -133,7 +133,7 @@ paths:
       - 通報
   /api/auth/forgot-password:
     post:
-      description: 登録の有無が分からないよう、送らなかったときも 204 を返す。リンクは1時間有効。1つのアドレスにつき1時間に3回まで
+      description: 登録の有無が分からないよう、送らなかったとき・送れなかったときも 204 を返す(メールは応答を返したあとに送るので、応答の速さも変わらない)。リンクは1時間有効。1つのアドレスにつき1時間に3回まで
       operationId: forgotPassword
       requestBody:
         content:
@@ -156,12 +156,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
           description: 回数が多すぎる。少し待ってからやり直す
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-          description: 確認メールを送れなかった。少し待ってからやり直す
       security: []
       summary: パスワード再設定のメールを送る
       tags:

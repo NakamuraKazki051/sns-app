@@ -30,6 +30,9 @@ app:
     required: false
   register:
     per-hour: 100000
+  # 再設定・再送のメールを、応答のあとではなくその場で送る(テストのトランザクションの中で、送ったリンクを確かめるため)
+  mail:
+    background: false
   # 管理者(通報を見て対応する人)のユーザー名。カンマ区切り。空なら誰もいない(common/Admins.java)
   admin:
     usernames: report_admin

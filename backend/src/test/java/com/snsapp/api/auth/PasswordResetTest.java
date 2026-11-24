@@ -1,6 +1,7 @@
 package com.snsapp.api.auth;
 
 import com.snsapp.api.ApiTestSupport;
+import com.snsapp.api.common.ApiException;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -143,5 +145,16 @@ class PasswordResetTest extends ApiTestSupport {
             forgot(email).andExpect(status().isNoContent());
         }
         forgot(email).andExpect(status().isTooManyRequests());
+    }
+
+    /** 送れなかったことを伝えると、登録済みのアドレスだと分かってしまう */
+    @Test
+    void aMailFailureIsNotRevealed() throws Exception {
+        String name = newUsername();
+        String email = name + "@example.com";
+        registerAndLogin(name);
+        doThrow(ApiException.serviceUnavailable("送れません")).when(mailer).sendPasswordReset(eq(email), any());
+        forgot(email).andExpect(status().isNoContent());
+        verify(mailer).sendPasswordReset(eq(email), any());
     }
 }
