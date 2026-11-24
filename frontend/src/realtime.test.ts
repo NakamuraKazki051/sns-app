@@ -124,4 +124,36 @@ describe("realtime(F-28)", () => {
     await vi.advanceTimersByTimeAsync(60_000);
     expect(FakeSocket.instances).toHaveLength(1);
   });
+
+  it("止めてすぐ始め直しても、古いつながりが閉じたときに2本目をつながない(StrictMode の付け直し)", async () => {
+    startRealtime();
+    const old = latest();
+    old.open();
+    stopRealtime();
+    startRealtime();
+    const current = latest();
+    current.open();
+    // 古い方の「閉じた」は、始め直したあとで届く
+    old.drop(1000);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(FakeSocket.instances).toHaveLength(2);
+    // 新しい方の ping は止まらない
+    expect(current.sent.length).toBeGreaterThan(0);
+  });
+
+  it("トークンを作り直している間に始め直されたら、古いつなぎ直しは捨てる", async () => {
+    let finishRefresh: (value: "ok") => void = () => {};
+    vi.mocked(refreshTokens).mockImplementationOnce(() => new Promise((resolve) => (finishRefresh = resolve)));
+    startRealtime();
+    latest().open();
+    latest().drop(4001);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(refreshTokens).toHaveBeenCalledTimes(1);
+    stopRealtime();
+    startRealtime();
+    expect(FakeSocket.instances).toHaveLength(2);
+    finishRefresh("ok");
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(FakeSocket.instances).toHaveLength(2);
+  });
 });
