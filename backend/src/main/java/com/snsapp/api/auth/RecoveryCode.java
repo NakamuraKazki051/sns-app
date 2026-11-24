@@ -34,15 +34,15 @@ public class RecoveryCode {
         this.codeHash = codeHash;
     }
 
+    public Long getId() {
+        return id;
+    }
+
     public String getCodeHash() {
         return codeHash;
     }
 
     public boolean isUsed() {
         return usedAt != null;
-    }
-
-    public void use(Instant at) {
-        this.usedAt = at;
     }
 }

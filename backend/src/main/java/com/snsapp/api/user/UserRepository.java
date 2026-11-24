@@ -26,6 +26,14 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query("delete from User u where u.emailVerifiedAt is null and u.createdAt < :before")
     void deleteUnverifiedBefore(@Param("before") Instant before);
 
+    /**
+     * 認証アプリのコードの時間枠を使ったことにする(F-24)。前に使った枠より新しいときだけ書き換え、書き換えた行数を返す。
+     * 確かめと書き換えを1つの UPDATE で行うので、同じコードを同時に送られても通るのは1回だけ
+     */
+    @Modifying
+    @Query("update User u set u.totpLastStep = :step where u.id = :id and u.totpLastStep < :step")
+    int claimTotpStep(@Param("id") String id, @Param("step") long step);
+
     /** おすすめ(F-27): 最近登録した人(メールの確認が済んだ人だけ、新しい順) */
     @Query("select u.id from User u where u.emailVerifiedAt is not null and u.id not in :excluded order by u.createdAt desc")
     List<String> findNewestVerifiedIds(@Param("excluded") Collection<String> excluded, Limit limit);

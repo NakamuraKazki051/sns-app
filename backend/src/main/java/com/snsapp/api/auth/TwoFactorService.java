@@ -1,6 +1,7 @@
 package com.snsapp.api.auth;
 
 import com.snsapp.api.user.User;
+import com.snsapp.api.user.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,10 +23,12 @@ public class TwoFactorService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final RecoveryCodeRepository recoveryCodes;
+    private final UserRepository users;
     private Clock clock = Clock.systemUTC();
 
-    public TwoFactorService(RecoveryCodeRepository recoveryCodes) {
+    public TwoFactorService(RecoveryCodeRepository recoveryCodes, UserRepository users) {
         this.recoveryCodes = recoveryCodes;
+        this.users = users;
     }
 
     /** テストで時刻を進める */
@@ -70,14 +73,19 @@ public class TwoFactorService {
         String normalized = normalize(code);
         long step = Totp.match(user.getTotpSecret(), normalized, now(), user.getTotpLastStep());
         if (step >= 0) {
+            // user は読んだときの写しなので、DB の値と比べて書き換える(同時に同じコードが来たら、後の方は 0 行で断る)
+            if (users.claimTotpStep(user.getId(), step) == 0) {
+                return false;
+            }
+            // 呼んだ側があとで user を保存しても、古い枠に戻さないように
             user.useTotpStep(step);
             return true;
         }
         String hash = LinkTokens.hash(normalized.toLowerCase(Locale.ROOT));
         for (RecoveryCode recovery : recoveryCodes.findByUserIdAndUsedAtIsNull(user.getId())) {
             if (java.security.MessageDigest.isEqual(recovery.getCodeHash().getBytes(), hash.getBytes())) {
-                recovery.use(now());
-                return true;
+                // 同時に同じリカバリーコードが来たら、先に書き換えた方だけ通す
+                return recoveryCodes.claim(recovery.getId(), now()) == 1;
             }
         }
         return false;
