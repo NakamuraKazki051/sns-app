@@ -1,6 +1,9 @@
 package com.snsapp.api.auth;
 
 import com.snsapp.api.ApiTestSupport;
+import com.snsapp.api.user.User;
+import com.snsapp.api.user.UserRepository;
+import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -36,6 +40,12 @@ class TwoFactorTest extends ApiTestSupport {
 
     @Autowired
     private TwoFactorService service;
+
+    @Autowired
+    private UserRepository users;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private Instant now = Instant.parse("2026-11-10T00:00:00Z");
 
@@ -192,6 +202,50 @@ class TwoFactorTest extends ApiTestSupport {
         login(name, null).andExpect(status().isOk());
         mockMvc.perform(json(delete("/api/me/two-factor").cookie(session), Map.of("password", PASSWORD, "code", "000000")))
                 .andExpect(status().isConflict());
+    }
+
+    /**
+     * 同じコードを2つのリクエストが同時に送ったとき。どちらも「まだ使っていない」状態を読んでから確かめるので、
+     * 読んだ写し2つで順に確かめて、同時に来たときを再現する。通るのは先の1回だけ
+     */
+    @Test
+    void theSameTotpCodeSentTwiceAtOncePassesOnlyOnce() throws Exception {
+        at(now);
+        String name = newUsername();
+        Cookie session = registerAndLogin(name);
+        String secret = setup(session);
+        enable(session, secret);
+        later(Duration.ofSeconds(30));
+        String userId = users.findByUsername(name).orElseThrow().getId();
+        entityManager.flush();
+        entityManager.clear();
+        User first = users.findById(userId).orElseThrow();
+        entityManager.detach(first);
+        User second = users.findById(userId).orElseThrow();
+        entityManager.detach(second);
+
+        String code = codeNow(secret);
+        assertTrue(service.verify(first, code));
+        assertFalse(service.verify(second, code));
+    }
+
+    @Test
+    void theSameRecoveryCodeSentTwiceAtOncePassesOnlyOnce() throws Exception {
+        at(now);
+        String name = newUsername();
+        Cookie session = registerAndLogin(name);
+        List<String> recovery = enable(session, setup(session));
+        String userId = users.findByUsername(name).orElseThrow().getId();
+        entityManager.flush();
+        entityManager.clear();
+        User user = users.findById(userId).orElseThrow();
+        entityManager.detach(user);
+
+        assertTrue(service.verify(user, recovery.getFirst()));
+        // 先のリクエストが書き換えたものを、後のリクエストはまだ読んでいない(写しを捨てて DB から読み直させる)
+        entityManager.clear();
+        assertFalse(service.verify(user, recovery.getFirst()));
+        assertEquals(TwoFactorService.RECOVERY_CODES - 1, service.recoveryCodesLeft(userId));
     }
 
     @Test
